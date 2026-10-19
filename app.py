@@ -106,37 +106,52 @@ def init_edupredict_pipeline():
         "parental_education", "internet_access", "tutoring"
     ]
     raw_X = [[dataset.get_column(col)[r] for col in feature_cols] for r in range(len(dataset))]
-    y_reg = dataset.get_column("final_exam_score")
-    y_clf = dataset.get_column("academic_risk")
+    y_reg = [float(v) for v in dataset.get_column("final_exam_score")]
+    y_clf = [int(v) for v in dataset.get_column("academic_risk")]
+
+    # Split raw records and targets TOGETHER before any preprocessing (preserves alignment!)
+    raw_X_train, raw_X_test, y_reg_train, y_reg_test, y_clf_train, y_clf_test = train_test_split(
+        raw_X, y_reg, y_clf,
+        test_size=0.2,
+        random_seed=42,
+        stratify=y_clf
+    )
 
     num_cols_idx = [0, 1, 2, 3]
     cat_cols_idx = [4, 5, 6]
 
-    num_X = [[row[i] for i in num_cols_idx] for row in raw_X]
-    cat_X = [[row[i] for i in cat_cols_idx] for row in raw_X]
+    num_X_train = [[row[i] for i in num_cols_idx] for row in raw_X_train]
+    cat_X_train = [[row[i] for i in cat_cols_idx] for row in raw_X_train]
 
+    num_X_test = [[row[i] for i in num_cols_idx] for row in raw_X_test]
+    cat_X_test = [[row[i] for i in cat_cols_idx] for row in raw_X_test]
+
+    # Fit imputers on TRAINING FEATURES ONLY
     num_imputer = SimpleImputer(strategy="mean")
     cat_imputer = SimpleImputer(strategy="mode")
-    num_X_clean = num_imputer.fit_transform(num_X)
-    cat_X_clean = cat_imputer.fit_transform(cat_X)
+    num_X_train_clean = num_imputer.fit_transform(num_X_train)
+    cat_X_train_clean = cat_imputer.fit_transform(cat_X_train)
 
+    num_X_test_clean = num_imputer.transform(num_X_test)
+    cat_X_test_clean = cat_imputer.transform(cat_X_test)
+
+    # Fit OneHotEncoder on TRAINING FEATURES ONLY
     ohe = OneHotEncoder(drop_first=False)
-    cat_X_encoded = ohe.fit_transform(cat_X_clean)
+    cat_X_train_encoded = ohe.fit_transform(cat_X_train_clean)
+    cat_X_test_encoded = ohe.transform(cat_X_test_clean)
 
-    combined_X = []
-    for r in range(len(num_X_clean)):
-        combined_X.append([float(v) for v in num_X_clean[r]] + [float(v) for v in cat_X_encoded[r]])
+    combined_X_train = []
+    for r in range(len(num_X_train_clean)):
+        combined_X_train.append([float(v) for v in num_X_train_clean[r]] + [float(v) for v in cat_X_train_encoded[r]])
 
-    X_train_raw, X_test_raw, y_reg_train, y_reg_test = train_test_split(
-        combined_X, y_reg, test_size=0.2, random_seed=42
-    )
-    _, _, y_clf_train, y_clf_test = train_test_split(
-        combined_X, y_clf, test_size=0.2, random_seed=42, stratify=True
-    )
+    combined_X_test = []
+    for r in range(len(num_X_test_clean)):
+        combined_X_test.append([float(v) for v in num_X_test_clean[r]] + [float(v) for v in cat_X_test_encoded[r]])
 
+    # Fit StandardScaler on TRAINING FEATURES ONLY
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train_raw)
-    X_test = scaler.transform(X_test_raw)
+    X_train = scaler.fit_transform(combined_X_train)
+    X_test = scaler.transform(combined_X_test)
 
     # Train Regression Models
     lr_gd = LinearRegression(solver="gd", learning_rate=0.05, max_epochs=600, random_seed=42)
@@ -395,12 +410,12 @@ elif nav_option == "📊 Dataset & Math Summaries":
     st.table(stats_data)
 
     st.subheader("🛡️ Zero-Data-Leakage Preprocessing Architecture")
-    st.markdown("""
+    st.markdown(r"""
     To guarantee strict scientific validity and prevent data leakage:
     1. **Missing Value Imputation:** `SimpleImputer` computes training means and modes on `X_train` only. Test records are imputed using frozen training parameters.
     2. **Categorical Encoding:** `OneHotEncoder` fits its vocabulary on `X_train`. Unseen categories during inference are safely encoded with all-zero vectors.
     3. **Standardization:** `StandardScaler` computes sample mean $\mu_{\text{train}}$ and standard deviation $\sigma_{\text{train}}$. The test set transformation strictly applies:
-       $$z = \\frac{x - \\mu_{\\text{train}}}{\\sigma_{\\text{train}}}$$
+       $$z = \frac{x - \mu_{\text{train}}}{\sigma_{\text{train}}}$$
     4. **Target Isolation:** Target vectors (`final_exam_score`, `academic_risk`) are strictly segregated prior to feature matrix transformations.
     """)
 
@@ -544,19 +559,19 @@ elif nav_option == "📈 Visualizations & Benchmarks":
     with c1:
         st.markdown("**1. Student Final Exam Score Prediction (Regression)**")
         reg_table = [
-            {"Model": "Linear Regression (GD)", "MSE": 15.0003, "RMSE": 3.8730, "MAE": 3.0972, "R²": 0.8997, "Train (ms)": 821.5},
-            {"Model": "Linear Regression (Normal Eq)", "MSE": 14.9979, "RMSE": 3.8727, "MAE": 3.0970, "R²": 0.8997, "Train (ms)": 65.7},
-            {"Model": "KNN Regressor (k=7)", "MSE": 41.8624, "RMSE": 6.4701, "MAE": 5.1624, "R²": 0.7200, "Train (ms)": 0.9},
+            {"Model": "Linear Regression (GD)", "MSE": 14.1756, "RMSE": 3.7651, "MAE": 3.1520, "R²": 0.8847, "Train (ms)": 1825.2},
+            {"Model": "Linear Regression (Normal Eq)", "MSE": 14.1744, "RMSE": 3.7649, "MAE": 3.1518, "R²": 0.8847, "Train (ms)": 48.8},
+            {"Model": "KNN Regressor (k=7)", "MSE": 28.4933, "RMSE": 5.3379, "MAE": 4.4592, "R²": 0.7683, "Train (ms)": 1.0},
         ]
         st.table(reg_table)
 
     with c2:
         st.markdown("**2. Student Academic Risk Prediction (Classification)**")
         clf_table = [
-            {"Model": "Logistic Regression", "Accuracy": "56.67%", "Precision": 0.5714, "Recall": 0.4138, "F1": 0.4800, "ROC-AUC": 0.5545},
-            {"Model": "Gaussian Naive Bayes", "Accuracy": "50.83%", "Precision": 0.4909, "Recall": 0.4655, "F1": 0.4779, "ROC-AUC": 0.5412},
-            {"Model": "Decision Tree (Depth=5)", "Accuracy": "49.17%", "Precision": 0.4444, "Recall": 0.2069, "F1": 0.2824, "ROC-AUC": 0.4702},
-            {"Model": "KNN Classifier (k=5)", "Accuracy": "47.50%", "Precision": 0.4545, "Recall": 0.4310, "F1": 0.4425, "ROC-AUC": 0.4665},
+            {"Model": "Logistic Regression", "Accuracy": "91.67%", "Precision": 0.9138, "Recall": 0.9138, "F1": 0.9138, "ROC-AUC": 0.9669},
+            {"Model": "Gaussian Naive Bayes", "Accuracy": "85.83%", "Precision": 0.8596, "Recall": 0.8448, "F1": 0.8522, "ROC-AUC": 0.9410},
+            {"Model": "KNN Classifier (k=5)", "Accuracy": "83.33%", "Precision": 0.8654, "Recall": 0.7759, "F1": 0.8182, "ROC-AUC": 0.9103},
+            {"Model": "Decision Tree (Depth=5)", "Accuracy": "81.67%", "Precision": 0.8600, "Recall": 0.7414, "F1": 0.7963, "ROC-AUC": 0.8897},
         ]
         st.table(clf_table)
 
@@ -612,66 +627,66 @@ elif nav_option == "📚 Viva Voce & Architecture Guide":
     st.markdown("<div class='sub-header'>Comprehensive conceptual, algorithmic, and mathematical answers prepared for college project examiners.</div>", unsafe_allow_html=True)
 
     with st.expander("❓ Q1: Why implement Classical ML from scratch instead of using Scikit-Learn or NumPy?", expanded=True):
-        st.markdown("""
+        st.markdown(r"""
         **Examiner Context:** Tests whether the student understands low-level mechanics or only knows API calls.
         
         **Answer:**
         Using libraries like Scikit-Learn or NumPy treats algorithms as black boxes, concealing numerical considerations such as matrix inversion instability, floating-point clipping, gradient derivation, and tie-breaking.
         
         Building from scratch proves:
-        1. Exact mastery of analytical derivatives (e.g. $\\nabla_{\\mathbf{w}} J = \\frac{1}{m}\\mathbf{X}^T(\\sigma(\\mathbf{z}) - \\mathbf{y})$).
-        2. Deep comprehension of data leakage prevention (imputing and scaling strictly on $X_{\\text{train}}$).
+        1. Exact mastery of analytical derivatives (e.g. $\nabla_{\mathbf{w}} J = \frac{1}{m}\mathbf{X}^T(\sigma(\mathbf{z}) - \mathbf{y})$).
+        2. Deep comprehension of data leakage prevention (imputing and scaling strictly on $X_{\text{train}}$).
         3. Ability to implement numerical algorithms such as Gauss-Jordan elimination with pivoting without external BLAS routines.
         """)
 
     with st.expander("❓ Q2: How did you implement and test your analytical gradients for Gradient Descent?"):
-        st.markdown("""
+        st.markdown(r"""
         **Answer:**
         We derived the analytical gradients from first principles:
-        - For MSE: $\\frac{\\partial J}{\\partial \\mathbf{w}} = \\frac{2}{m}\\mathbf{X}^T(\\mathbf{X}\\mathbf{w} - \\mathbf{y})$
-        - For BCE: $\\frac{\\partial J}{\\partial \\mathbf{w}} = \\frac{1}{m}\\mathbf{X}^T(\\sigma(\\mathbf{X}\\mathbf{w} + b) - \\mathbf{y})$
+        - For MSE: $\frac{\partial J}{\partial \mathbf{w}} = \frac{2}{m}\mathbf{X}^T(\mathbf{X}\mathbf{w} - \mathbf{y})$
+        - For BCE: $\frac{\partial J}{\partial \mathbf{w}} = \frac{1}{m}\mathbf{X}^T(\sigma(\mathbf{X}\mathbf{w} + b) - \mathbf{y})$
         
         To guarantee mathematical correctness, we implemented a automated **centered finite-difference gradient checker** in `tests/test_losses.py`:
-        $$\\frac{\\partial J}{\\partial w_j} \\approx \\frac{J(\\mathbf{w} + \\epsilon \\mathbf{e}_j) - J(\\mathbf{w} - \\epsilon \\mathbf{e}_j)}{2\\epsilon}$$
-        with $\\epsilon = 10^{-5}$. Both analytical and numerical gradients matched with $< 10^{-5}$ tolerance.
+        $$\frac{\partial J}{\partial w_j} \approx \frac{J(\mathbf{w} + \epsilon \mathbf{e}_j) - J(\mathbf{w} - \epsilon \mathbf{e}_j)}{2\epsilon}$$
+        with $\epsilon = 10^{-5}$. Both analytical and numerical gradients matched with $< 10^{-5}$ tolerance.
         """)
 
     with st.expander("❓ Q3: How is matrix inversion implemented in the Normal Equation without NumPy?"):
-        st.markdown("""
+        st.markdown(r"""
         **Answer:**
-        The closed-form Ordinary Least Squares solution is $\\mathbf{w} = (\\mathbf{X}^T\\mathbf{X} + \\lambda \\mathbf{I})^{-1}\\mathbf{X}^T\\mathbf{y}$.
+        The closed-form Ordinary Least Squares solution is $\mathbf{w} = (\mathbf{X}^T\mathbf{X} + \lambda \mathbf{I})^{-1}\mathbf{X}^T\mathbf{y}$.
         We implemented **Gauss-Jordan Elimination with partial pivoting** in `edupredict/math/matrices.py`.
-        - Augments matrix $\\mathbf{A}$ with the identity matrix $[\\mathbf{A} \\mid \\mathbf{I}]$.
+        - Augments matrix $\mathbf{A}$ with the identity matrix $[\mathbf{A} \mid \mathbf{I}]$.
         - Swaps rows to place the largest pivot on the diagonal to minimize roundoff error.
         - Scales pivot rows to $1.0$ and zeroes out non-diagonal entries through row operations.
-        - Adds an $L_2$ ridge penalty $\\lambda = 10^{-4}$ to ensure non-singularity.
+        - Adds an $L_2$ ridge penalty $\lambda = 10^{-4}$ to ensure non-singularity.
         """)
 
     with st.expander("❓ Q4: How is ROC-AUC computed without Scikit-Learn?"):
-        st.markdown("""
+        st.markdown(r"""
         **Answer:**
         In `edupredict/metrics/classification.py`:
         1. Collect unique predicted probabilities as candidate decision thresholds.
-        2. For each threshold $\\tau$, binarize predictions $\\hat{y} = [1 \\text{ if } p \\ge \\tau \\text{ else } 0]$.
-        3. Compute $\\text{FPR} = \\frac{\\text{FP}}{\\text{FP} + \\text{TN}}$ and $\\text{TPR} = \\frac{\\text{TP}}{\\text{TP} + \\text{FN}}$.
+        2. For each threshold $\tau$, binarize predictions $\hat{y} = [1 \text{ if } p \ge \tau \text{ else } 0]$.
+        3. Compute $\text{FPR} = \frac{\text{FP}}{\text{FP} + \text{TN}}$ and $\text{TPR} = \frac{\text{TP}}{\text{TP} + \text{FN}}$.
         4. Integrate the area under the curve using the **trapezoidal numerical integration rule**:
-           $$\\text{AUC} = \\sum_{i=1}^{k} \\frac{\\text{TPR}_i + \\text{TPR}_{i-1}}{2} \\times (\\text{FPR}_i - \\text{FPR}_{i-1})$$
+           $$\text{AUC} = \sum_{i=1}^{k} \frac{\text{TPR}_i + \text{TPR}_{i-1}}{2} \times (\text{FPR}_i - \text{FPR}_{i-1})$$
         """)
 
     with st.expander("❓ Q5: How do you handle tie-breaking and probability calibration in KNN?"):
-        st.markdown("""
+        st.markdown(r"""
         **Answer:**
         In `edupredict/models/knn.py`:
         - In classification, if two or more classes tie for maximum vote count, the tie is broken deterministically by measuring the **minimum distance to the closest neighbor** belonging to each tied class.
-        - For probabilities, we compute posterior class likelihoods $p_k(x) = \\frac{\\sum_{i \\in N_k} w_i}{\\sum_{i=1}^k w_i}$, where weights can be uniform ($1.0$) or distance-weighted ($\\frac{1}{d_i + 10^{-8}}$).
+        - For probabilities, we compute posterior class likelihoods $p_k(x) = \frac{\sum_{i \in N_k} w_i}{\sum_{i=1}^k w_i}$, where weights can be uniform ($1.0$) or distance-weighted ($\frac{1}{d_i + 10^{-8}}$).
         """)
 
     with st.expander("❓ Q6: How does the Decision Tree prevent overfitting and calculate feature importances?"):
-        st.markdown("""
+        st.markdown(r"""
         **Answer:**
         In `edupredict/models/decision_tree.py`:
         - Regularization is enforced via `max_depth`, `min_samples_split`, and pure node stopping.
         - Feature importance is calculated by accumulating the **impurity decrease** weighted by the fraction of samples passing through each internal node:
-          $$\\Delta I(n) = \\frac{N_n}{N}\\left(I(n) - \\frac{N_L}{N_n}I(n_L) - \\frac{N_R}{N_n}I(n_R)\\right)$$
+          $$\Delta I(n) = \frac{N_n}{N}\left(I(n) - \frac{N_L}{N_n}I(n_L) - \frac{N_R}{N_n}I(n_R)\right)$$
           and normalizing the sum across all features to $1.0$.
         """)

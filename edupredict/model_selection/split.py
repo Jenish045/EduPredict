@@ -13,34 +13,30 @@ from typing import Sequence, List, Tuple, Any, Optional, Union, Dict
 Number = Union[int, float]
 
 
-def train_test_split(
-    X: Sequence[Sequence[Any]],
-    y: Sequence[Any],
+def train_test_split_indices(
+    n_samples: int,
     test_size: float = 0.2,
+    stratify: Optional[Sequence[Any]] = None,
     shuffle: bool = True,
-    random_seed: Optional[int] = 42,
-    stratify: bool = False
-) -> Tuple[List[List[Any]], List[List[Any]], List[Any], List[Any]]:
+    random_seed: Optional[int] = 42
+) -> Tuple[List[int], List[int]]:
     """
-    Split matrices or sequences into random train and test subsets.
-    
-    Returns:
-        X_train, X_test, y_train, y_test
+    Generate non-overlapping train and test indices from first principles.
+    Guarantees sample alignment across all arrays sharing these indices.
     """
-    if len(X) == 0 or len(y) == 0:
-        raise ValueError("Cannot split empty arrays")
-    if len(X) != len(y):
-        raise ValueError(f"Lengths do not match: len(X)={len(X)} != len(y)={len(y)}")
+    if n_samples <= 0:
+        raise ValueError(f"n_samples must be positive, got {n_samples}")
     if not (0.0 < test_size < 1.0):
         raise ValueError(f"test_size must be between 0 and 1, got {test_size}")
 
-    n_samples = len(X)
     rng = random.Random(random_seed)
 
-    if stratify:
-        # Group indices by class label in y
+    if stratify is not None:
+        if len(stratify) != n_samples:
+            raise ValueError(f"Length of stratify ({len(stratify)}) must match n_samples ({n_samples})")
+
         label_groups: Dict[Any, List[int]] = {}
-        for idx, label in enumerate(y):
+        for idx, label in enumerate(stratify):
             if label not in label_groups:
                 label_groups[label] = []
             label_groups[label].append(idx)
@@ -69,12 +65,69 @@ def train_test_split(
         test_indices = indices[:n_test]
         train_indices = indices[n_test:]
 
-    X_train = [list(X[i]) for i in train_indices]
-    X_test = [list(X[i]) for i in test_indices]
-    y_train = [y[i] for i in train_indices]
-    y_test = [y[i] for i in test_indices]
+    return train_indices, test_indices
 
-    return X_train, X_test, y_train, y_test
+
+def train_test_split(
+    *arrays: Sequence[Any],
+    test_size: float = 0.2,
+    shuffle: bool = True,
+    random_seed: Optional[int] = 42,
+    stratify: Optional[Union[bool, Sequence[Any]]] = None
+) -> Tuple[Any, ...]:
+    """
+    Split one or more matrices or sequences into aligned random train and test subsets.
+    
+    Guarantees:
+    - Every feature row corresponds to its exact original regression and classification targets.
+    - Zero index overlap between training and test sets.
+    - Preserves class proportions when stratified by a target sequence.
+    
+    Returns:
+        Tuple of (arr0_train, arr0_test, arr1_train, arr1_test, ...)
+    """
+    if len(arrays) == 0:
+        raise ValueError("At least one array required for train_test_split")
+
+    n_samples = len(arrays[0])
+    if n_samples == 0:
+        raise ValueError("Cannot split empty arrays")
+
+    for i, arr in enumerate(arrays):
+        if len(arr) != n_samples:
+            raise ValueError(
+                f"Array at position {i} length ({len(arr)}) does not match first array ({n_samples})"
+            )
+
+    # Resolve stratify labels
+    strat_labels: Optional[Sequence[Any]] = None
+    if stratify is True:
+        if len(arrays) < 2:
+            raise ValueError("stratify=True requires at least one target array in arrays")
+        strat_labels = arrays[1]
+    elif stratify is False or stratify is None:
+        strat_labels = None
+    elif isinstance(stratify, (list, tuple)):
+        strat_labels = stratify
+    else:
+        raise TypeError(f"Unsupported stratify type: {type(stratify).__name__}")
+
+    train_indices, test_indices = train_test_split_indices(
+        n_samples=n_samples,
+        test_size=test_size,
+        stratify=strat_labels,
+        shuffle=shuffle,
+        random_seed=random_seed
+    )
+
+    result: List[Any] = []
+    for arr in arrays:
+        arr_train = [list(arr[i]) if isinstance(arr[i], (list, tuple)) else arr[i] for i in train_indices]
+        arr_test = [list(arr[i]) if isinstance(arr[i], (list, tuple)) else arr[i] for i in test_indices]
+        result.extend([arr_train, arr_test])
+
+    return tuple(result)
+
 
 
 class KFold:

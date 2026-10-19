@@ -95,74 +95,91 @@ def run_full_experiment(
         "tutoring",
     ]
     raw_X = [[dataset.get_column(col)[r] for col in feature_cols] for r in range(len(dataset))]
-    y_reg = dataset.get_column("final_exam_score")
-    y_clf = dataset.get_column("academic_risk")
+    y_reg = [float(v) for v in dataset.get_column("final_exam_score")]
+    y_clf = [int(v) for v in dataset.get_column("academic_risk")]
 
-    # Step 3: Handle missing values via SimpleImputer
+    # Step 3: Split raw records and targets TOGETHER before ANY preprocessing
+    # Uses a single unified split mechanism with shared indices to strictly preserve sample alignment!
+    # Stratified by y_clf so training and testing partitions maintain identical class proportions.
+    raw_X_train, raw_X_test, y_reg_train, y_reg_test, y_clf_train, y_clf_test = train_test_split(
+        raw_X, y_reg, y_clf,
+        test_size=0.2,
+        random_seed=random_seed,
+        stratify=y_clf
+    )
+
     num_cols_idx = [0, 1, 2, 3]
     cat_cols_idx = [4, 5, 6]
 
-    num_X = [[row[i] for i in num_cols_idx] for row in raw_X]
-    cat_X = [[row[i] for i in cat_cols_idx] for row in raw_X]
+    num_X_train = [[row[i] for i in num_cols_idx] for row in raw_X_train]
+    cat_X_train = [[row[i] for i in cat_cols_idx] for row in raw_X_train]
 
+    num_X_test = [[row[i] for i in num_cols_idx] for row in raw_X_test]
+    cat_X_test = [[row[i] for i in cat_cols_idx] for row in raw_X_test]
+
+    # Step 4: Fit numerical and categorical imputers on TRAINING FEATURES ONLY
     num_imputer = SimpleImputer(strategy="mean")
     cat_imputer = SimpleImputer(strategy="mode")
 
-    num_X_clean = num_imputer.fit_transform(num_X)
-    cat_X_clean = cat_imputer.fit_transform(cat_X)
+    num_X_train_clean = num_imputer.fit_transform(num_X_train)
+    cat_X_train_clean = cat_imputer.fit_transform(cat_X_train)
+
+    # Transform test partition with frozen training imputer parameters (NO LEAKAGE)
+    num_X_test_clean = num_imputer.transform(num_X_test)
+    cat_X_test_clean = cat_imputer.transform(cat_X_test)
 
     # Diagnostic EDA Visualizations: Feature distributions & Pearson correlation heatmap
+    # Rendered strictly on the training partition to respect the training boundary
     num_feature_names = ["study_hours", "attendance", "past_score", "assignments_completed"]
     features_dict = {
-        name: [num_X_clean[r][i] for r in range(len(num_X_clean))]
+        name: [num_X_train_clean[r][i] for r in range(len(num_X_train_clean))]
         for i, name in enumerate(num_feature_names)
     }
     plot_feature_distributions(
         features_dict,
-        title="Student Numerical Feature Distributions",
+        title="Student Numerical Feature Distributions (Training Split)",
         save_path=os.path.join(output_dir, "feature_distributions.png")
     )
 
-    corr_cols = [features_dict[name] for name in num_feature_names] + [y_reg]
+    corr_cols = [features_dict[name] for name in num_feature_names] + [y_reg_train]
     corr_names = num_feature_names + ["final_score"]
     corr_mat = correlation_matrix(corr_cols)
     plot_correlation_heatmap(
         corr_mat,
         corr_names,
-        title="Feature & Target Pearson Correlation Matrix",
+        title="Feature & Target Pearson Correlation Matrix (Training Split)",
         save_path=os.path.join(output_dir, "correlation_heatmap.png")
     )
 
-    # Step 4: Encode categorical features
+    # Step 5: Fit OneHotEncoder on TRAINING CATEGORICAL FEATURES ONLY
     ohe = OneHotEncoder(drop_first=False)
-    cat_X_encoded = ohe.fit_transform(cat_X_clean)
+    cat_X_train_encoded = ohe.fit_transform(cat_X_train_clean)
+    cat_X_test_encoded = ohe.transform(cat_X_test_clean)
 
-    # Combine numeric and encoded categorical features
-    combined_X: list[list[float]] = []
-    for r in range(len(num_X_clean)):
-        combined_X.append([float(v) for v in num_X_clean[r]] + [float(v) for v in cat_X_encoded[r]])
+    # Combine numeric and encoded categorical features for train and test
+    combined_X_train: list[list[float]] = []
+    for r in range(len(num_X_train_clean)):
+        combined_X_train.append([float(v) for v in num_X_train_clean[r]] + [float(v) for v in cat_X_train_encoded[r]])
 
-    # Build feature column names list
+    combined_X_test: list[list[float]] = []
+    for r in range(len(num_X_test_clean)):
+        combined_X_test.append([float(v) for v in num_X_test_clean[r]] + [float(v) for v in cat_X_test_encoded[r]])
+
+    # Build feature column names list from encoder fitted on train
     encoded_feature_names = ["study_hours", "attendance", "past_score", "assignments_completed"]
     for col_idx, cats in enumerate(ohe.categories_):
         cat_name = feature_cols[cat_cols_idx[col_idx]]
         for cat in cats:
             encoded_feature_names.append(f"{cat_name}_{cat}")
 
-    # Step 5: Feature scaling (prevent data leakage by fitting on train only!)
-    # We first split raw combined_X, then fit scaler on train
-    X_train_raw, X_test_raw, y_reg_train, y_reg_test = train_test_split(
-        combined_X, y_reg, test_size=0.2, random_seed=random_seed
-    )
-    _, _, y_clf_train, y_clf_test = train_test_split(
-        combined_X, y_clf, test_size=0.2, random_seed=random_seed, stratify=True
-    )
-
+    # Step 6: Fit StandardScaler on TRAINING FEATURES ONLY, then transform test
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train_raw)
-    X_test = scaler.transform(X_test_raw)  # strictly transform test without fitting
+    X_train = scaler.fit_transform(combined_X_train)
+    X_test = scaler.transform(combined_X_test)  # strictly transform test without fitting
 
     print(f"\n[*] Split completed: {len(X_train)} training samples, {len(X_test)} testing samples.")
+    print(f"[*] Verified zero leakage: Imputer, Encoder & Scaler fit strictly on training partition.")
+
 
     # ==========================================
     # REGRESSION BENCHMARK: Predicting Final Score
@@ -403,6 +420,6 @@ def run_full_experiment(
     return {
         "regression_benchmark": reg_report.records,
         "classification_benchmark": clf_report.records,
-        "n_samples": len(combined_X),
-        "n_features": len(combined_X[0]),
+        "n_samples": len(raw_X),
+        "n_features": len(X_train[0]),
     }

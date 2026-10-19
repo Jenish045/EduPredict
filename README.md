@@ -3,7 +3,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Strict Dependency Policy](https://img.shields.io/badge/dependencies-Zero%20External%20ML%20Libs-success.svg)]()
 [![Lab Project](https://img.shields.io/badge/ML%20Lab-30%20Marks-orange.svg)]()
-[![Build & Tests](https://img.shields.io/badge/tests-84%20passed-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-89%20passed-brightgreen.svg)]()
 
 > **EduPredict** is an end-to-end Classical Machine Learning framework designed for predicting student academic performance (continuous score regression) and early academic risk detection (binary classification). The core distinguishing feature is that **every mathematical operation, linear algebra routine, data transformer, statistical formula, optimization algorithm, model architecture, loss function, and evaluation metric is implemented 100% from first principles using standard Python** — without relying on NumPy, Pandas, Scikit-Learn, SciPy, PyTorch, or TensorFlow.
 
@@ -321,24 +321,28 @@ streamlit run app.py
 
 ## 13. Empirical Benchmark Results
 
-Evaluated on the 600-student cohort using an 80/20 train/test split (480 train / 120 test) with identical leak-free preprocessing:
+> **Dataset Provenance & Nature:** The benchmark dataset (`data/student_performance.csv`) is a **reproducible synthetic dataset** modeled after classical student achievement benchmarks (Cortez & Silva, 2008). It was generated deliberately with realistic non-linear relationships, environmental interactions, and intermittent missingness for reproducible offline laboratory evaluation. Results reflect this synthetic data distribution; no specific real-world accuracy is promised.
+
+Evaluated on the 600-student cohort using an 80/20 train/test split (480 train / 120 test) with unified aligned splitting and strict zero-leakage preprocessing:
 
 ### Task 1: Predicting Final Exam Score (Regression)
 | Model | MSE | RMSE | MAE | $R^2$ Score | Training Time | Inference Time |
 |---|---|---|---|---|---|---|
-| **Linear Regression (GD)** | **15.0003** | **3.8730** | **3.0972** | **0.8997** | 1830 ms | 1.94 ms |
-| **Linear Regression (Normal Eq)** | **14.9979** | **3.8727** | **3.0970** | **0.8997** | 43.6 ms | 1.83 ms |
-| **KNN Regressor ($k=7$)** | 41.8624 | 6.4701 | 5.1624 | 0.7200 | 1.03 ms | 973 ms |
+| **Linear Regression (GD)** | **14.1756** | **3.7651** | **3.1520** | **0.8847** | 1825 ms | 1.85 ms |
+| **Linear Regression (Normal Eq)** | **14.1744** | **3.7649** | **3.1518** | **0.8847** | 48.8 ms | 1.83 ms |
+| **KNN Regressor ($k=7$)** | 28.4933 | 5.3379 | 4.4592 | 0.7683 | 0.98 ms | 894 ms |
 
-*Key Insight:* Linear Regression captures the underlying academic performance relationships with an outstanding $R^2 \approx 0.90$. The closed-form Normal Equation solves 40× faster than iterative Gradient Descent while yielding identical parameters. KNN regression achieves solid performance ($R^2 = 0.72$) with zero training time, but incurs $500\times$ higher inference latency due to exhaustive distance scanning.
+*Key Insight:* Linear Regression captures the underlying academic performance relationships with a robust $R^2 \approx 0.88$. The closed-form Normal Equation solves in ~49 ms compared to 1825 ms for iterative Gradient Descent while yielding identical parameters. KNN regression achieves solid non-parametric performance ($R^2 = 0.77$) with near-zero training time, but requires ~894 ms inference latency for exhaustive distance scanning.
 
 ### Task 2: Academic Risk Early Warning (Classification)
 | Model | Accuracy | Precision | Recall | $F_1$-Score | ROC-AUC | Training Time | Inference Time |
 |---|---|---|---|---|---|---|---|
-| **Logistic Regression** | **56.67%** | **0.5714** | **0.4138** | **0.4800** | **0.5545** | 1909 ms | 1.96 ms |
-| **Gaussian Naive Bayes** | 50.83% | 0.4909 | 0.4655 | 0.4779 | 0.5412 | 4.95 ms | 2.19 ms |
-| **Decision Tree (Depth=5)** | 49.17% | 0.4444 | 0.2069 | 0.2824 | 0.4702 | 715 ms | 0.33 ms |
-| **KNN Classifier ($k=5$)** | 47.50% | 0.4545 | 0.4310 | 0.4425 | 0.4665 | 0.97 ms | 983 ms |
+| **Logistic Regression** | **91.67%** | **0.9138** | **0.9138** | **0.9138** | **0.9669** | 10100 ms | 1.98 ms |
+| **Gaussian Naive Bayes** | 85.83% | 0.8596 | 0.8448 | 0.8522 | 0.9410 | 7.70 ms | 3.20 ms |
+| **KNN Classifier ($k=5$)** | 83.33% | 0.8654 | 0.7759 | 0.8182 | 0.9103 | 0.93 ms | 1086 ms |
+| **Decision Tree (Depth=5)** | 81.67% | 0.8600 | 0.7414 | 0.7963 | 0.8897 | 510 ms | 0.37 ms |
+
+*Key Insight on Pipeline Correctness:* Fixing the feature/label misalignment defect and preprocessing leakage established genuine model learning, yielding an ROC-AUC of 0.9669 for Logistic Regression and strong discriminatory capability across all four classical algorithms.
 
 ---
 

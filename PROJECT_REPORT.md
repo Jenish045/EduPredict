@@ -13,7 +13,7 @@
 
 ## Abstract
 
-In this project, we design, implement, evaluate, and deploy **EduPredict**, a comprehensive classical machine learning framework engineered entirely from first principles using standard Python. The system addresses a critical institutional educational challenge: forecasting continuous student final examination performance and detecting early academic risk ($< 60\%$ threshold). Under a strict zero-third-party-ML dependency constraint, the underlying linear algebra, matrix inversion, descriptive statistics, missing value imputation, categorical encoding, standardization, loss functions, analytical gradients, first-order optimization routines, four classical ML algorithms (Linear Regression, Logistic Regression, $k$-Nearest Neighbors, and Decision Trees), and complete evaluation suites (including ROC curves and trapezoidal AUC integration) were developed from scratch. We benchmarked the models on a 600-student cohort using a leak-free 80/20 train/test experimental protocol. Linear Regression achieved an $R^2$ score of $0.8997$ with a root mean squared error of $3.87$ marks, while Logistic Regression achieved a classification accuracy of $56.67\%$ with an ROC-AUC of $0.5545$. An interactive Streamlit web dashboard and JSON serialization module were built to demonstrate real-time inference and deployment readiness.
+In this project, we design, implement, evaluate, and deploy **EduPredict**, a comprehensive classical machine learning framework engineered entirely from first principles using standard Python. The system addresses a critical institutional educational challenge: forecasting continuous student final examination performance and detecting early academic risk ($< 60\%$ threshold). Under a strict zero-third-party-ML dependency constraint, the underlying linear algebra, matrix inversion, descriptive statistics, missing value imputation, categorical encoding, standardization, loss functions, analytical gradients, first-order optimization routines, four classical ML algorithms (Linear Regression, Logistic Regression, $k$-Nearest Neighbors, and Decision Trees), and complete evaluation suites (including ROC curves and trapezoidal AUC integration) were developed from scratch. We benchmarked the models on a reproducible 600-student synthetic cohort using a leak-free 80/20 train/test experimental protocol with unified sample alignment. Linear Regression achieved an $R^2$ score of $0.8847$ with an RMSE of $3.76$ marks, while Logistic Regression achieved a classification accuracy of $91.67\%$ with an ROC-AUC of $0.9669$. An interactive Streamlit web dashboard and JSON serialization module were built to demonstrate real-time inference and deployment readiness.
 
 ---
 
@@ -139,25 +139,25 @@ In classical ML, data leakage occurs when information from outside the training 
 ### 6.2 Empirical Benchmark: Final Exam Score Regression
 | Model | MSE | RMSE | MAE | $R^2$ Score | Training Time | Inference Time |
 |---|---|---|---|---|---|---|
-| **Linear Regression (GD)** | **15.0003** | **3.8730** | **3.0972** | **0.8997** | 1830 ms | 1.94 ms |
-| **Linear Regression (Normal Eq)** | **14.9979** | **3.8727** | **3.0970** | **0.8997** | 43.6 ms | 1.83 ms |
-| **KNN Regressor ($k=7$)** | 41.8624 | 6.4701 | 5.1624 | 0.7200 | 1.03 ms | 973 ms |
+| **Linear Regression (GD)** | **14.1756** | **3.7651** | **3.1520** | **0.8847** | 1825 ms | 1.85 ms |
+| **Linear Regression (Normal Eq)** | **14.1744** | **3.7649** | **3.1518** | **0.8847** | 48.8 ms | 1.83 ms |
+| **KNN Regressor ($k=7$)** | 28.4933 | 5.3379 | 4.4592 | 0.7683 | 0.98 ms | 894 ms |
 
-**Analysis:** Linear Regression exhibits superior predictive capability ($R^2 \approx 0.90$), confirming strong linear relationships between study hours, attendance, prior scores, and final achievement. The closed-form Normal Equation converged to identical parameters 40× faster than iterative gradient descent.
+**Analysis:** Linear Regression exhibits superior predictive capability ($R^2 \approx 0.88$), confirming strong linear relationships between study hours, attendance, prior scores, and final achievement. The closed-form Normal Equation converged to identical parameters ~40× faster than iterative gradient descent.
 
 ### 6.3 Empirical Benchmark: Academic Risk Classification
 | Model | Accuracy | Precision | Recall | $F_1$-Score | ROC-AUC | Training Time | Inference Time |
 |---|---|---|---|---|---|---|---|
-| **Logistic Regression** | **56.67%** | **0.5714** | **0.4138** | **0.4800** | **0.5545** | 1909 ms | 1.96 ms |
-| **Gaussian Naive Bayes** | 50.83% | 0.4909 | 0.4655 | 0.4779 | 0.5412 | 4.95 ms | 2.19 ms |
-| **Decision Tree (Depth=5)** | 49.17% | 0.4444 | 0.2069 | 0.2824 | 0.4702 | 715 ms | 0.33 ms |
-| **KNN Classifier ($k=5$)** | 47.50% | 0.4545 | 0.4310 | 0.4425 | 0.4665 | 0.97 ms | 983 ms |
+| **Logistic Regression** | **91.67%** | **0.9138** | **0.9138** | **0.9138** | **0.9669** | 10100 ms | 1.98 ms |
+| **Gaussian Naive Bayes** | 85.83% | 0.8596 | 0.8448 | 0.8522 | 0.9410 | 7.70 ms | 3.20 ms |
+| **KNN Classifier ($k=5$)** | 83.33% | 0.8654 | 0.7759 | 0.8182 | 0.9103 | 0.93 ms | 1086 ms |
+| **Decision Tree (Depth=5)** | 81.67% | 0.8600 | 0.7414 | 0.7963 | 0.8897 | 510 ms | 0.37 ms |
 
 ---
 
 ## 7. Verification & Automated Testing Suite
 
-The framework includes **84 automated unit tests** in `tests/` covering:
+The framework includes **89 automated unit and integration tests** in `tests/` covering:
 1. `test_math_vectors.py`: Dot products, norms, distances, and zero-length guards.
 2. `test_math_matrices.py`: Matmul, transpose, and Gauss-Jordan inversion with singular matrix detection.
 3. `test_math_stats.py`: Mean, median, mode, variance, covariance, and Pearson correlation.
@@ -170,9 +170,10 @@ The framework includes **84 automated unit tests** in `tests/` covering:
 10. `test_metrics.py`: Classification report, confusion matrix, ROC curve, and trapezoidal AUC.
 11. `test_serialization.py`: JSON state export and import for all six models.
 12. `test_multiclass.py`: One-vs-Rest meta-classification across three-category grades.
-13. `test_dependency_compliance.py`: AST static analysis guaranteeing zero prohibited ML library imports.
+13. `test_pipeline_integrity.py`: Integration testing for feature/target alignment, split non-overlap, and leak-free transformer fit boundaries.
+14. `test_dependency_compliance.py`: AST static analysis guaranteeing zero prohibited ML library imports.
 
-All 84 tests pass in **0.40 seconds**.
+All 89 tests pass in **0.61 seconds**.
 
 ---
 
