@@ -4,6 +4,7 @@ Categorical encoding from scratch.
 Provides:
 - LabelEncoder: encodes 1D sequence of categorical labels into integers [0, K-1].
 - OneHotEncoder: converts categorical columns in a 2D matrix into binary indicator columns.
+Supports handling of unknown categories and constant features.
 """
 
 from typing import List, Dict, Any, Sequence, Optional, Union
@@ -12,9 +13,15 @@ from typing import List, Dict, Any, Sequence, Optional, Union
 class LabelEncoder:
     """
     Encode target labels or single categorical features with value between 0 and n_classes-1.
+    
+    Args:
+        handle_unknown: 'error' (raise ValueError on unseen labels) or 'ignore' (assign -1).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, handle_unknown: str = "error") -> None:
+        if handle_unknown not in ("error", "ignore"):
+            raise ValueError(f"handle_unknown must be 'error' or 'ignore', got '{handle_unknown}'")
+        self.handle_unknown = handle_unknown
         self.classes_: List[Any] = []
         self.class_to_idx_: Dict[Any, int] = {}
         self.idx_to_class_: Dict[int, Any] = {}
@@ -37,11 +44,20 @@ class LabelEncoder:
         """Transform labels to normalized encodings."""
         if not self._is_fitted:
             raise RuntimeError("LabelEncoder is not fitted yet.")
+        if len(y) == 0:
+            return []
+
         encoded = []
         for val in y:
             if val not in self.class_to_idx_:
-                raise ValueError(f"Unseen label '{val}' encountered during transform. Known classes: {self.classes_}")
-            encoded.append(self.class_to_idx_[val])
+                if self.handle_unknown == "error":
+                    raise ValueError(
+                        f"Unseen label '{val}' encountered during transform. Known classes: {self.classes_}"
+                    )
+                else:
+                    encoded.append(-1)
+            else:
+                encoded.append(self.class_to_idx_[val])
         return encoded
 
     def fit_transform(self, y: Sequence[Any]) -> List[int]:
@@ -52,17 +68,32 @@ class LabelEncoder:
         """Transform integer labels back to original classes."""
         if not self._is_fitted:
             raise RuntimeError("LabelEncoder is not fitted yet.")
-        return [self.idx_to_class_[idx] for idx in y_encoded]
+        result = []
+        for idx in y_encoded:
+            if idx == -1:
+                result.append("UNKNOWN")
+            elif idx not in self.idx_to_class_:
+                raise ValueError(f"Invalid encoded label {idx}. Valid range [0, {len(self.classes_) - 1}]")
+            else:
+                result.append(self.idx_to_class_[idx])
+        return result
 
 
 class OneHotEncoder:
     """
     Encode categorical features as a one-hot numeric matrix.
     Optionally drop first category to avoid multicollinearity (dummy variable trap).
+    
+    Args:
+        drop_first: If True, drops first category per column.
+        handle_unknown: 'ignore' (outputs all zeros for unseen categories) or 'error'.
     """
 
-    def __init__(self, drop_first: bool = False) -> None:
+    def __init__(self, drop_first: bool = False, handle_unknown: str = "ignore") -> None:
+        if handle_unknown not in ("ignore", "error"):
+            raise ValueError(f"handle_unknown must be 'ignore' or 'error', got '{handle_unknown}'")
         self.drop_first = drop_first
+        self.handle_unknown = handle_unknown
         self.categories_: List[List[Any]] = []
         self._is_fitted: bool = False
 
@@ -99,6 +130,9 @@ class OneHotEncoder:
             encoded_row: List[float] = []
             for col_idx, val in enumerate(row):
                 cats = self.categories_[col_idx]
+                if self.handle_unknown == "error" and val not in cats and (not self.drop_first or val not in set([row[col_idx] for row in cats])):
+                    # Check if val is known
+                    raise ValueError(f"Unknown category '{val}' in column {col_idx}. Known: {cats}")
                 for cat in cats:
                     encoded_row.append(1.0 if val == cat else 0.0)
             encoded_rows.append(encoded_row)

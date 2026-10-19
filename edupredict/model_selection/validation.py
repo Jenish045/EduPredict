@@ -4,7 +4,7 @@ Model validation and cross-validation procedures implemented from scratch.
 
 from typing import Sequence, List, Any, Callable, Union, Optional
 import copy
-from edupredict.model_selection.split import KFold
+from edupredict.model_selection.split import KFold, StratifiedKFold
 from edupredict.metrics.classification import accuracy_score
 from edupredict.metrics.regression import r2_score, mean_squared_error
 
@@ -13,7 +13,7 @@ def cross_val_score(
     estimator: Any,
     X: Sequence[Sequence[Any]],
     y: Sequence[Any],
-    cv: Union[int, KFold] = 5,
+    cv: Union[int, KFold, StratifiedKFold] = 5,
     scoring: Union[str, Callable] = "accuracy"
 ) -> List[float]:
     """
@@ -23,7 +23,7 @@ def cross_val_score(
         estimator: Model object implementing fit() and predict().
         X: Feature matrix.
         y: Target sequence.
-        cv: Number of folds (int) or KFold instance.
+        cv: Number of folds (int) or KFold/StratifiedKFold instance.
         scoring: Metric to compute ('accuracy', 'r2', 'mse', or callable metric(y_true, y_pred)).
 
     Returns:
@@ -31,10 +31,10 @@ def cross_val_score(
     """
     if isinstance(cv, int):
         splitter = KFold(n_splits=cv, shuffle=True, random_seed=42)
-    elif isinstance(cv, KFold):
+    elif isinstance(cv, (KFold, StratifiedKFold)):
         splitter = cv
     else:
-        raise TypeError("cv must be an integer or KFold instance")
+        raise TypeError("cv must be an integer, KFold, or StratifiedKFold instance")
 
     if isinstance(scoring, str):
         if scoring == "accuracy":
@@ -51,7 +51,10 @@ def cross_val_score(
         raise TypeError("scoring must be a string or callable")
 
     scores: List[float] = []
-    splits = splitter.split(X)
+    if isinstance(splitter, StratifiedKFold):
+        splits = splitter.split(X, y)
+    else:
+        splits = splitter.split(X)
 
     for train_idx, test_idx in splits:
         X_train = [X[i] for i in train_idx]

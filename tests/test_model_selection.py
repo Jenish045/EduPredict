@@ -1,26 +1,27 @@
 """
-Unit tests for train/test splitting and cross-validation.
+Unit tests for train/test splitting, stratified K-fold, and cross-validation.
 """
 
 import unittest
-from edupredict.model_selection.split import train_test_split, KFold
+from edupredict.model_selection.split import train_test_split, KFold, StratifiedKFold
 from edupredict.model_selection.validation import cross_val_score
 from edupredict.models.logistic_regression import LogisticRegression
 
 
 class TestModelSelection(unittest.TestCase):
 
-    def test_train_test_split(self):
-        X = [[i] for i in range(100)]
+    def test_train_test_split_determinism(self):
+        X = [[float(i), float(i * 2)] for i in range(100)]
         y = [i % 2 for i in range(100)]
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.25, random_seed=42
-        )
-        self.assertEqual(len(X_train), 75)
-        self.assertEqual(len(X_test), 25)
-        self.assertEqual(len(y_train), 75)
-        self.assertEqual(len(y_test), 25)
+        # Two splits with same seed must be identical
+        X_tr1, X_te1, y_tr1, y_te1 = train_test_split(X, y, test_size=0.2, random_seed=42)
+        X_tr2, X_te2, y_tr2, y_te2 = train_test_split(X, y, test_size=0.2, random_seed=42)
+
+        self.assertEqual(X_tr1, X_tr2)
+        self.assertEqual(X_te1, X_te2)
+        self.assertEqual(y_tr1, y_tr2)
+        self.assertEqual(y_te1, y_te2)
 
     def test_stratified_split(self):
         # 80 class 0, 20 class 1
@@ -48,6 +49,27 @@ class TestModelSelection(unittest.TestCase):
             all_test_indices.extend(test_idx)
 
         self.assertEqual(sorted(all_test_indices), list(range(10)))
+
+    def test_stratified_kfold(self):
+        # 60 samples: 40 class 0, 20 class 1
+        X = [[float(i)] for i in range(60)]
+        y = [0] * 40 + [1] * 20
+
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_seed=42)
+        splits = skf.split(X, y)
+        self.assertEqual(len(splits), 5)
+
+        all_test_indices = []
+        for train_idx, test_idx in splits:
+            # Each fold test set: 12 samples (8 of class 0, 4 of class 1)
+            self.assertEqual(len(test_idx), 12)
+            test_y = [y[i] for i in test_idx]
+            self.assertEqual(test_y.count(0), 8)
+            self.assertEqual(test_y.count(1), 4)
+            all_test_indices.extend(test_idx)
+
+        # All samples must be tested exactly once
+        self.assertEqual(sorted(all_test_indices), list(range(60)))
 
     def test_cross_val_score(self):
         # Linearly separable data

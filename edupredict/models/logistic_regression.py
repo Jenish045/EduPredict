@@ -29,6 +29,9 @@ class LogisticRegression(BaseModel):
         batch_size: Optional[int] = None,
         momentum: float = 0.0,
         l2_penalty: float = 0.0,
+        early_stopping: bool = False,
+        patience: int = 10,
+        tolerance: float = 1e-6,
         random_seed: Optional[int] = 42
     ) -> None:
         super().__init__()
@@ -37,6 +40,9 @@ class LogisticRegression(BaseModel):
         self.batch_size = batch_size
         self.momentum = momentum
         self.l2_penalty = l2_penalty
+        self.early_stopping = early_stopping
+        self.patience = patience
+        self.tolerance = tolerance
         self.random_seed = random_seed
 
         self.weights_: List[float] = []
@@ -70,6 +76,9 @@ class LogisticRegression(BaseModel):
             max_epochs=self.max_epochs,
             batch_size=self.batch_size,
             momentum=self.momentum,
+            tolerance=self.tolerance,
+            early_stopping=self.early_stopping,
+            patience=self.patience,
             random_seed=self.random_seed
         )
         optimizer.init_velocity(n_features)
@@ -108,6 +117,15 @@ class LogisticRegression(BaseModel):
             probs = self.predict_proba(X)
             epoch_loss = binary_cross_entropy(y_int, probs)
             self.loss_history_.append(epoch_loss)
+
+            if len(self.loss_history_) > 1 and optimizer.check_convergence(self.loss_history_[-2], epoch_loss):
+                break
+
+            if optimizer.should_stop_early(epoch_loss, self.weights_, self.bias_):
+                if optimizer.best_weights is not None:
+                    self.weights_ = list(optimizer.best_weights)
+                    self.bias_ = optimizer.best_bias
+                break
 
         self._is_fitted = True
         return self

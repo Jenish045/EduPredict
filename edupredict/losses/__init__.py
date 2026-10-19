@@ -10,6 +10,8 @@ from edupredict.losses.regression import (
 from edupredict.losses.classification import (
     binary_cross_entropy,
     bce_gradient_wrt_logits,
+    hinge_loss,
+    hinge_subgradient,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "mse_gradient",
     "binary_cross_entropy",
     "bce_gradient_wrt_logits",
+    "hinge_loss",
+    "hinge_subgradient",
 ]
