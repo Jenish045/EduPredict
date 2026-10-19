@@ -8,6 +8,8 @@ from edupredict.models.logistic_regression import LogisticRegression
 from edupredict.models.knn import KNNClassifier, KNNRegressor
 from edupredict.models.decision_tree import DecisionTreeClassifier
 from edupredict.models.naive_bayes import GaussianNaiveBayes
+from edupredict.models.multiclass import OneVsRestClassifier
+from edupredict.models.serialization import save_model, load_model
 
 __all__ = [
     "BaseModel",
@@ -17,4 +19,8 @@ __all__ = [
     "KNNRegressor",
     "DecisionTreeClassifier",
     "GaussianNaiveBayes",
+    "OneVsRestClassifier",
+    "save_model",
+    "load_model",
 ]
+

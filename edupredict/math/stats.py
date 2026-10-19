@@ -238,3 +238,22 @@ def pearson_correlation(x: Sequence[Number], y: Sequence[Number]) -> float:
     if r < -1.0:
         return -1.0
     return r
+
+
+def correlation_matrix(columns: Sequence[Sequence[Number]]) -> List[List[float]]:
+    """
+    Compute pairwise Pearson correlation matrix for multiple numeric columns from first principles:
+    R_{i,j} = r(X_i, X_j) in [-1.0, 1.0] with R_{i,i} = 1.0.
+    """
+    if not isinstance(columns, (list, tuple)) or len(columns) == 0:
+        raise ValueError("columns cannot be empty")
+    p = len(columns)
+    matrix = [[0.0] * p for _ in range(p)]
+    for i in range(p):
+        matrix[i][i] = 1.0
+        for j in range(i + 1, p):
+            r = pearson_correlation(columns[i], columns[j])
+            matrix[i][j] = r
+            matrix[j][i] = r
+    return matrix
+

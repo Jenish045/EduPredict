@@ -38,6 +38,7 @@ from edupredict.math.stats import (
     standard_deviation,
     covariance,
     pearson_correlation,
+    correlation_matrix,
 )
 from edupredict.math.activations import (
     clip,
@@ -82,6 +83,7 @@ __all__ = [
     "standard_deviation",
     "covariance",
     "pearson_correlation",
+    "correlation_matrix",
     # Activations
     "clip",
     "sigmoid",

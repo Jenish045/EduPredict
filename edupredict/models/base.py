@@ -18,6 +18,11 @@ class BaseModel(ABC):
     def __init__(self) -> None:
         self._is_fitted: bool = False
 
+    @property
+    def is_fitted(self) -> bool:
+        """Return True if model has been fitted."""
+        return self._is_fitted
+
     def _check_is_fitted(self) -> None:
         """Check if the model has already been fitted, otherwise raise RuntimeError."""
         if not self._is_fitted:

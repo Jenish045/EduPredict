@@ -36,12 +36,16 @@ from edupredict.metrics.classification import (
     roc_curve,
     roc_auc_score,
 )
+from edupredict.math.stats import correlation_matrix
 from edupredict.visualization.plots import (
     plot_loss_curve,
     plot_confusion_matrix_heatmap,
     plot_feature_importances,
     plot_actual_vs_predicted,
     plot_roc_curves,
+    plot_correlation_heatmap,
+    plot_feature_distributions,
+    plot_classification_comparison,
 )
 from edupredict.experiments.benchmark import BenchmarkReport
 
@@ -106,6 +110,28 @@ def run_full_experiment(
 
     num_X_clean = num_imputer.fit_transform(num_X)
     cat_X_clean = cat_imputer.fit_transform(cat_X)
+
+    # Diagnostic EDA Visualizations: Feature distributions & Pearson correlation heatmap
+    num_feature_names = ["study_hours", "attendance", "past_score", "assignments_completed"]
+    features_dict = {
+        name: [num_X_clean[r][i] for r in range(len(num_X_clean))]
+        for i, name in enumerate(num_feature_names)
+    }
+    plot_feature_distributions(
+        features_dict,
+        title="Student Numerical Feature Distributions",
+        save_path=os.path.join(output_dir, "feature_distributions.png")
+    )
+
+    corr_cols = [features_dict[name] for name in num_feature_names] + [y_reg]
+    corr_names = num_feature_names + ["final_score"]
+    corr_mat = correlation_matrix(corr_cols)
+    plot_correlation_heatmap(
+        corr_mat,
+        corr_names,
+        title="Feature & Target Pearson Correlation Matrix",
+        save_path=os.path.join(output_dir, "correlation_heatmap.png")
+    )
 
     # Step 4: Encode categorical features
     ohe = OneHotEncoder(drop_first=False)
@@ -360,6 +386,13 @@ def run_full_experiment(
         roc_curves_data,
         title="ROC Curves Comparison (Student Academic Risk)",
         save_path=os.path.join(output_dir, "roc_curves.png")
+    )
+
+    # Plot Classification Benchmark Comparison Bar Chart
+    plot_classification_comparison(
+        clf_report.records,
+        title="Classification Models Benchmark Comparison",
+        save_path=os.path.join(output_dir, "classification_comparison.png")
     )
 
     clf_report.print_table()

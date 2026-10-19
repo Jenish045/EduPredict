@@ -218,3 +218,151 @@ def plot_roc_curves(
         for name, (_, _, auc_val) in curves.items():
             lines.append(f"{name:<25}: AUC = {auc_val:.4f}")
         return "\n".join(lines)
+
+
+def plot_correlation_heatmap(
+    corr_matrix: Sequence[Sequence[float]],
+    feature_names: Sequence[str],
+    title: str = "Pearson Feature Correlation Matrix",
+    save_path: Optional[str] = None
+) -> str:
+    """
+    Render correlation matrix heatmap computed from first principles.
+    """
+    try:
+        import matplotlib.pyplot as plt
+        p = len(feature_names)
+        fig, ax = plt.subplots(figsize=(max(6, p * 1.1), max(5, p * 0.9)))
+        cax = ax.matshow(corr_matrix, cmap="coolwarm", vmin=-1.0, vmax=1.0)
+        cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
+        cbar.set_label("Pearson Correlation (r)", fontsize=11)
+
+        ax.set_xticks(range(p))
+        ax.set_yticks(range(p))
+        ax.set_xticklabels(feature_names, rotation=35, ha="left", fontsize=10)
+        ax.set_yticklabels(feature_names, fontsize=10)
+
+        for i in range(p):
+            for j in range(p):
+                val = corr_matrix[i][j]
+                text_color = "white" if abs(val) > 0.55 else "black"
+                ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=text_color, fontsize=10, fontweight="bold")
+
+        plt.title(title, pad=30, fontsize=13, fontweight="bold")
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            plt.savefig(save_path, dpi=200)
+            plt.close()
+            return f"Correlation heatmap saved to {save_path}"
+        else:
+            plt.close()
+            return "Correlation heatmap rendered."
+    except ImportError:
+        lines = [f"=== {title} ==="]
+        header = "Feature | " + " | ".join(f"{f[:8]:>8}" for f in feature_names)
+        lines.append(header)
+        for i, f in enumerate(feature_names):
+            row_str = f"{f[:10]:<10} | " + " | ".join(f"{corr_matrix[i][j]:8.2f}" for j in range(p))
+            lines.append(row_str)
+        return "\n".join(lines)
+
+
+def plot_feature_distributions(
+    features_dict: Dict[str, Sequence[Number]],
+    title: str = "Student Numerical Feature Distributions",
+    save_path: Optional[str] = None
+) -> str:
+    """
+    Render multi-panel histograms for numerical input features.
+    """
+    try:
+        import matplotlib.pyplot as plt
+        num_features = len(features_dict)
+        cols = 2
+        rows = (num_features + cols - 1) // cols
+
+        fig, axes = plt.subplots(rows, cols, figsize=(10, rows * 3.5))
+        axes = [axes] if num_features == 1 else (axes.flatten() if hasattr(axes, "flatten") else [axes])
+
+        palette = ["#3867d6", "#20bf6b", "#fa8231", "#8854d0", "#eb3b5a"]
+
+        for idx, (fname, vals) in enumerate(features_dict.items()):
+            ax = axes[idx]
+            clean_vals = [float(v) for v in vals if v is not None]
+            color = palette[idx % len(palette)]
+            ax.hist(clean_vals, bins=15, color=color, edgecolor="black", alpha=0.75)
+            ax.set_title(fname.replace("_", " ").title(), fontsize=11, fontweight="bold")
+            ax.set_xlabel("Value", fontsize=10)
+            ax.set_ylabel("Frequency", fontsize=10)
+            ax.grid(True, linestyle="--", alpha=0.4)
+
+        # Hide any unused subplots
+        for idx in range(num_features, len(axes)):
+            axes[idx].set_visible(False)
+
+        fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            plt.savefig(save_path, dpi=200, bbox_inches="tight")
+            plt.close()
+            return f"Feature distributions saved to {save_path}"
+        else:
+            plt.close()
+            return "Feature distributions rendered."
+    except ImportError:
+        return f"Matplotlib not installed. Skipping feature distributions."
+
+
+def plot_classification_comparison(
+    benchmark_records: List[Dict[str, Any]],
+    title: str = "Classification Models Performance Comparison",
+    save_path: Optional[str] = None
+) -> str:
+    """
+    Render grouped bar chart comparing performance metrics across all models.
+    """
+    try:
+        import matplotlib.pyplot as plt
+        models = [r["Model"] for r in benchmark_records]
+        metrics = ["Accuracy", "Precision", "Recall", "F1", "ROC-AUC"]
+        colors = ["#2bcbba", "#45aaf2", "#4b7bec", "#a55eea", "#fd9644"]
+
+        import math
+        n_models = len(models)
+        n_metrics = len(metrics)
+        bar_width = 0.15
+
+        fig, ax = plt.subplots(figsize=(10, 5.5))
+
+        for m_idx, metric in enumerate(metrics):
+            values = [r.get(metric, 0.0) for r in benchmark_records]
+            positions = [i + m_idx * bar_width for i in range(n_models)]
+            ax.bar(positions, values, width=bar_width, label=metric, color=colors[m_idx % len(colors)], alpha=0.85, edgecolor="black", linewidth=0.5)
+
+        ax.set_title(title, fontsize=13, fontweight="bold")
+        ax.set_ylabel("Score [0.0 - 1.0]", fontsize=11)
+        ax.set_ylim([0.0, 1.1])
+        ax.set_xticks([i + bar_width * (n_metrics - 1) / 2.0 for i in range(n_models)])
+        ax.set_xticklabels(models, fontsize=10, fontweight="bold")
+        ax.legend(loc="upper right", fontsize=10)
+        ax.grid(True, linestyle="--", alpha=0.4, axis="y")
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            plt.savefig(save_path, dpi=200)
+            plt.close()
+            return f"Classification comparison saved to {save_path}"
+        else:
+            plt.close()
+            return "Classification comparison rendered."
+    except ImportError:
+        lines = [f"=== {title} ==="]
+        for r in benchmark_records:
+            lines.append(f"{r['Model']}: Acc={r.get('Accuracy')}, F1={r.get('F1')}, AUC={r.get('ROC-AUC')}")
+        return "\n".join(lines)
+
