@@ -1,0 +1,7 @@
+# EduPredict: Classical ML Framework Implemented From Scratch
+# College ML Lab Project
+# Strict Rule: No NumPy, Pandas, Scikit-Learn, SciPy, PyTorch, or TensorFlow.
+
+# Optional UI & Visualization dependencies allowed by project policy
+matplotlib>=3.7.0
+streamlit>=1.30.0
