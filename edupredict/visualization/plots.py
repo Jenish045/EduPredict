@@ -2,12 +2,12 @@
 Diagnostic visualization tools for EduPredict.
 
 Uses matplotlib (as allowed by project policy) to generate clean, high-resolution
-plots for loss curves, confusion matrices, residuals, and feature importances.
+plots for loss curves, confusion matrices, residuals, feature importances, and ROC curves.
 Gracefully degrades to structured text formatting if matplotlib is not available.
 """
 
 import os
-from typing import Sequence, List, Optional, Any, Union
+from typing import Sequence, List, Optional, Any, Union, Dict, Tuple
 
 Number = Union[int, float]
 
@@ -108,7 +108,6 @@ def plot_feature_importances(
     """
     try:
         import matplotlib.pyplot as plt
-        # Sort by importance
         sorted_pairs = sorted(zip(feature_names, importances), key=lambda x: x[1])
         feats = [p[0] for p in sorted_pairs]
         imps = [p[1] for p in sorted_pairs]
@@ -150,7 +149,6 @@ def plot_actual_vs_predicted(
         plt.figure(figsize=(7, 6))
         plt.scatter(y_true, y_pred, alpha=0.6, color="#4b6584", edgecolors="none")
         
-        # Perfect prediction diagonal
         mn = min(min(y_true), min(y_pred))
         mx = max(max(y_true), max(y_pred))
         plt.plot([mn, mx], [mn, mx], "r--", linewidth=1.5, label="Ideal 1:1 Fit")
@@ -172,3 +170,51 @@ def plot_actual_vs_predicted(
             return "Plot rendered."
     except ImportError:
         return "Matplotlib not installed. Skipping scatter plot."
+
+
+def plot_roc_curves(
+    curves: Dict[str, Tuple[List[float], List[float], float]],
+    title: str = "ROC Curves Comparison",
+    save_path: Optional[str] = None
+) -> str:
+    """
+    Plot ROC Curves for multiple classifiers on the same figure.
+    
+    Args:
+        curves: Mapping of model_name -> (fpr, tpr, auc_score).
+        title: Plot title.
+        save_path: Optional path to save PNG.
+    """
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(8, 6))
+
+        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+        for idx, (name, (fpr, tpr, auc_val)) in enumerate(curves.items()):
+            color = colors[idx % len(colors)]
+            plt.plot(fpr, tpr, color=color, linewidth=2.0, label=f"{name} (AUC = {auc_val:.3f})")
+
+        # Diagonal chance line
+        plt.plot([0.0, 1.0], [0.0, 1.0], "k--", alpha=0.7, label="Chance (AUC = 0.500)")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate (FPR)", fontsize=12)
+        plt.ylabel("True Positive Rate (TPR / Recall)", fontsize=12)
+        plt.title(title, fontsize=14, fontweight="bold")
+        plt.legend(loc="lower right", fontsize=10)
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            plt.savefig(save_path, dpi=200)
+            plt.close()
+            return f"ROC curves saved to {save_path}"
+        else:
+            plt.close()
+            return "ROC curves rendered."
+    except ImportError:
+        lines = [f"=== {title} ==="]
+        for name, (_, _, auc_val) in curves.items():
+            lines.append(f"{name:<25}: AUC = {auc_val:.4f}")
+        return "\n".join(lines)

@@ -29,6 +29,7 @@ class LogisticRegression(BaseModel):
         batch_size: Optional[int] = None,
         momentum: float = 0.0,
         l2_penalty: float = 0.0,
+        threshold: float = 0.5,
         early_stopping: bool = False,
         patience: int = 10,
         tolerance: float = 1e-6,
@@ -40,6 +41,7 @@ class LogisticRegression(BaseModel):
         self.batch_size = batch_size
         self.momentum = momentum
         self.l2_penalty = l2_penalty
+        self.threshold = threshold
         self.early_stopping = early_stopping
         self.patience = patience
         self.tolerance = tolerance
@@ -145,10 +147,11 @@ class LogisticRegression(BaseModel):
     def predict(
         self,
         X: Sequence[Sequence[Number]],
-        threshold: float = 0.5
+        threshold: Optional[float] = None
     ) -> List[int]:
         """
         Predict binary class 0 or 1 using decision threshold.
         """
+        thresh = threshold if threshold is not None else self.threshold
         probs = self.predict_proba(X)
-        return [1 if p >= threshold else 0 for p in probs]
+        return [1 if p >= thresh else 0 for p in probs]

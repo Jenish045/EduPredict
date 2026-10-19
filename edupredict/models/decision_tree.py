@@ -221,3 +221,16 @@ class DecisionTreeClassifier(BaseModel):
         if row[node.feature_idx] <= node.threshold:
             return self._predict_row(row, node.left)
         return self._predict_row(row, node.right)
+
+    def predict_proba(self, X: Sequence[Sequence[Number]]) -> List[Dict[Any, float]]:
+        """Predict class posterior probabilities for samples in X."""
+        self._check_is_fitted()
+        self._validate_inputs(X, expected_features=self.n_features_)
+        return [self._predict_proba_row(row, self.root_) for row in X]
+
+    def _predict_proba_row(self, row: Sequence[Number], node: TreeNode) -> Dict[Any, float]:
+        if node.is_leaf:
+            return node.probabilities or {cls: 1.0 if cls == node.value else 0.0 for cls in self.classes_}
+        if row[node.feature_idx] <= node.threshold:
+            return self._predict_proba_row(row, node.left)
+        return self._predict_proba_row(row, node.right)

@@ -34,6 +34,7 @@ class LinearRegression(BaseModel):
         learning_rate: float = 0.01,
         max_epochs: int = 1000,
         batch_size: Optional[int] = None,
+        fit_intercept: bool = True,
         momentum: float = 0.0,
         l2_penalty: float = 0.0,
         early_stopping: bool = False,
@@ -45,6 +46,7 @@ class LinearRegression(BaseModel):
         if solver not in ("gd", "normal_equation"):
             raise ValueError(f"Unknown solver '{solver}'. Supported: 'gd', 'normal_equation'")
         self.solver = solver
+        self.fit_intercept = fit_intercept
         self.learning_rate = learning_rate
         self.max_epochs = max_epochs
         self.batch_size = batch_size
@@ -86,16 +88,19 @@ class LinearRegression(BaseModel):
         Compute closed-form solution: theta = (X_aug^T * X_aug)^(-1) * X_aug^T * y
         where X_aug includes a column of 1s for the bias/intercept.
         """
-        # Augment X with leading column of 1s for intercept
-        X_aug = [[1.0] + [float(val) for val in row] for row in X]
+        if self.fit_intercept:
+            X_aug = [[1.0] + [float(val) for val in row] for row in X]
+        else:
+            X_aug = [[float(val) for val in row] for row in X]
         y_vec = [float(val) for val in y]
 
         XT = matrix_transpose(X_aug)
         XT_X = matrix_multiply(XT, X_aug)
 
-        # Apply L2 ridge regularization to diagonal if l2_penalty > 0 to guarantee invertibility
+        # Apply L2 ridge regularization to diagonal if l2_penalty > 0
         if self.l2_penalty > 0.0:
-            for i in range(1, len(XT_X)):  # Do not regularize intercept
+            start_diag = 1 if self.fit_intercept else 0
+            for i in range(start_diag, len(XT_X)):
                 XT_X[i][i] += self.l2_penalty
 
         try:
@@ -109,8 +114,12 @@ class LinearRegression(BaseModel):
         XT_y = matrix_vector_mul(XT, y_vec)
         theta = matrix_vector_mul(XT_X_inv, XT_y)
 
-        self.bias_ = theta[0]
-        self.weights_ = theta[1:]
+        if self.fit_intercept:
+            self.bias_ = theta[0]
+            self.weights_ = theta[1:]
+        else:
+            self.bias_ = 0.0
+            self.weights_ = theta
 
         # Record final MSE
         preds = self.predict(X)
@@ -171,11 +180,16 @@ class LinearRegression(BaseModel):
                     if self.l2_penalty > 0.0:
                         grad_w[j] += (2.0 * self.l2_penalty * self.weights_[j])
 
-                grad_b = (2.0 / m_b) * grad_b
+                if self.fit_intercept:
+                    grad_b = (2.0 / m_b) * grad_b
+                else:
+                    grad_b = 0.0
 
                 self.weights_, self.bias_ = optimizer.update(
                     self.weights_, self.bias_, grad_w, grad_b
                 )
+                if not self.fit_intercept:
+                    self.bias_ = 0.0
 
             # Record epoch MSE loss
             all_preds = self.predict(X)

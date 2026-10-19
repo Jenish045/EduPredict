@@ -15,6 +15,8 @@ from edupredict.metrics.classification import (
     recall_score,
     f1_score,
     classification_report,
+    roc_curve,
+    roc_auc_score,
 )
 
 __all__ = [
@@ -28,4 +30,6 @@ __all__ = [
     "recall_score",
     "f1_score",
     "classification_report",
+    "roc_curve",
+    "roc_auc_score",
 ]

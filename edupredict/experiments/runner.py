@@ -2,10 +2,16 @@
 Reproducible end-to-end experiment runner for EduPredict.
 
 Executes both student performance regression and academic risk classification pipelines,
-benchmarking all implemented classical models from scratch.
+benchmarking all four implemented classical models from scratch:
+1. Linear Regression (Regression)
+2. Logistic Regression (Classification)
+3. K-Nearest Neighbors (Classification & Regression)
+4. Decision Tree (Classification)
+and Gaussian Naive Bayes baseline.
 """
 
 import os
+import time
 from typing import Dict, Any, Optional
 
 from edupredict.data.generator import generate_student_data
@@ -21,12 +27,21 @@ from edupredict.models.knn import KNNClassifier, KNNRegressor
 from edupredict.models.decision_tree import DecisionTreeClassifier
 from edupredict.models.naive_bayes import GaussianNaiveBayes
 from edupredict.metrics.regression import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
-from edupredict.metrics.classification import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from edupredict.metrics.classification import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    roc_curve,
+    roc_auc_score,
+)
 from edupredict.visualization.plots import (
     plot_loss_curve,
     plot_confusion_matrix_heatmap,
     plot_feature_importances,
     plot_actual_vs_predicted,
+    plot_roc_curves,
 )
 from edupredict.experiments.benchmark import BenchmarkReport
 
@@ -41,10 +56,10 @@ def run_full_experiment(
     1. Ingestion / Synthetic Generation
     2. Missing value handling (Imputation)
     3. Categorical encoding
-    4. Feature scaling
+    4. Feature scaling (fit on train only!)
     5. Regression benchmarking (Linear Regression vs KNN Regressor)
     6. Classification benchmarking (Logistic Regression vs KNN vs Decision Tree vs Naive Bayes)
-    7. Diagnostic visual reporting
+    7. Diagnostic visual reporting (Loss curves, confusion matrix, ROC curves)
     """
     os.makedirs(output_dir, exist_ok=True)
     print(f"=== EduPredict: Starting Classical ML Experiment (Seed={random_seed}) ===")
@@ -65,8 +80,7 @@ def run_full_experiment(
     print(f"[*] Dataset loaded successfully: {dataset.shape[0]} rows, {dataset.shape[1]} columns")
     print(dataset.summary())
 
-    # Step 2: Separate features and targets
-    # Feature columns: numeric and categorical
+    # Step 2: Separate features and targets (Zero Target Leakage)
     feature_cols = [
         "study_hours",
         "attendance",
@@ -81,7 +95,6 @@ def run_full_experiment(
     y_clf = dataset.get_column("academic_risk")
 
     # Step 3: Handle missing values via SimpleImputer
-    # For numeric (first 4 cols), impute mean; for categorical (next 3 cols), impute mode
     num_cols_idx = [0, 1, 2, 3]
     cat_cols_idx = [4, 5, 6]
 
@@ -110,17 +123,18 @@ def run_full_experiment(
         for cat in cats:
             encoded_feature_names.append(f"{cat_name}_{cat}")
 
-    # Step 5: Feature scaling
-    scaler = StandardScaler()
-    scaled_X = scaler.fit_transform(combined_X)
-
-    # Step 6: Train/Test Split (80/20)
-    X_train, X_test, y_reg_train, y_reg_test = train_test_split(
-        scaled_X, y_reg, test_size=0.2, random_seed=random_seed
+    # Step 5: Feature scaling (prevent data leakage by fitting on train only!)
+    # We first split raw combined_X, then fit scaler on train
+    X_train_raw, X_test_raw, y_reg_train, y_reg_test = train_test_split(
+        combined_X, y_reg, test_size=0.2, random_seed=random_seed
     )
     _, _, y_clf_train, y_clf_test = train_test_split(
-        scaled_X, y_clf, test_size=0.2, random_seed=random_seed, stratify=True
+        combined_X, y_clf, test_size=0.2, random_seed=random_seed, stratify=True
     )
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)  # strictly transform test without fitting
 
     print(f"\n[*] Split completed: {len(X_train)} training samples, {len(X_test)} testing samples.")
 
@@ -133,14 +147,22 @@ def run_full_experiment(
     reg_report = BenchmarkReport(task_name="Student Final Exam Score Prediction (Regression)")
 
     # 1A. Linear Regression via Gradient Descent
+    t0 = time.perf_counter()
     lr_gd = LinearRegression(solver="gd", learning_rate=0.05, max_epochs=600, random_seed=random_seed)
     lr_gd.fit(X_train, y_reg_train)
+    t_train_lr = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_lr_gd = lr_gd.predict(X_test)
+    t_infer_lr = (time.perf_counter() - t0) * 1000.0
+
     reg_report.add_result("Linear Regression (GD)", {
         "MSE": mean_squared_error(y_reg_test, preds_lr_gd),
         "RMSE": root_mean_squared_error(y_reg_test, preds_lr_gd),
         "MAE": mean_absolute_error(y_reg_test, preds_lr_gd),
         "R2": r2_score(y_reg_test, preds_lr_gd),
+        "Train(ms)": round(t_train_lr, 2),
+        "Infer(ms)": round(t_infer_lr, 2),
     })
 
     # Save GD Loss Curve
@@ -151,32 +173,48 @@ def run_full_experiment(
     )
 
     # 1B. Linear Regression via Normal Equation
+    t0 = time.perf_counter()
     lr_ne = LinearRegression(solver="normal_equation", l2_penalty=1e-4)
     lr_ne.fit(X_train, y_reg_train)
+    t_train_ne = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_lr_ne = lr_ne.predict(X_test)
+    t_infer_ne = (time.perf_counter() - t0) * 1000.0
+
     reg_report.add_result("Linear Regression (Normal Eq)", {
         "MSE": mean_squared_error(y_reg_test, preds_lr_ne),
         "RMSE": root_mean_squared_error(y_reg_test, preds_lr_ne),
         "MAE": mean_absolute_error(y_reg_test, preds_lr_ne),
         "R2": r2_score(y_reg_test, preds_lr_ne),
+        "Train(ms)": round(t_train_ne, 2),
+        "Infer(ms)": round(t_infer_ne, 2),
     })
 
     # 1C. KNN Regressor
+    t0 = time.perf_counter()
     knn_reg = KNNRegressor(n_neighbors=7, weights="distance")
     knn_reg.fit(X_train, y_reg_train)
+    t_train_knn = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_knn = knn_reg.predict(X_test)
+    t_infer_knn = (time.perf_counter() - t0) * 1000.0
+
     reg_report.add_result("KNN Regressor (k=7)", {
         "MSE": mean_squared_error(y_reg_test, preds_knn),
         "RMSE": root_mean_squared_error(y_reg_test, preds_knn),
         "MAE": mean_absolute_error(y_reg_test, preds_knn),
         "R2": r2_score(y_reg_test, preds_knn),
+        "Train(ms)": round(t_train_knn, 2),
+        "Infer(ms)": round(t_infer_knn, 2),
     })
 
     # Actual vs Predicted plot for best regressor
     plot_actual_vs_predicted(
         y_reg_test,
-        preds_lr_ne,
-        title="Actual vs Predicted Exam Scores (Normal Eq)",
+        preds_lr_gd,
+        title="Actual vs Predicted Exam Scores (Linear Regression GD)",
         save_path=os.path.join(output_dir, "actual_vs_predicted_scores.png")
     )
 
@@ -189,16 +227,31 @@ def run_full_experiment(
     print(">>> 2. CLASSIFICATION: PREDICTING ACADEMIC RISK (PASS vs RISK)")
     print("=" * 50)
     clf_report = BenchmarkReport(task_name="Student Academic Risk Prediction (Classification)")
+    roc_curves_data: Dict[str, Any] = {}
 
     # 2A. Logistic Regression
+    t0 = time.perf_counter()
     log_reg = LogisticRegression(learning_rate=0.1, max_epochs=500, random_seed=random_seed)
     log_reg.fit(X_train, y_clf_train)
+    t_train_log = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_log_reg = log_reg.predict(X_test)
+    t_infer_log = (time.perf_counter() - t0) * 1000.0
+
+    probs_log = log_reg.predict_proba(X_test)
+    fpr_log, tpr_log, _ = roc_curve(y_clf_test, probs_log, pos_label=1)
+    auc_log = roc_auc_score(y_clf_test, probs_log, pos_label=1)
+    roc_curves_data["Logistic Regression"] = (fpr_log, tpr_log, auc_log)
+
     clf_report.add_result("Logistic Regression", {
         "Accuracy": accuracy_score(y_clf_test, preds_log_reg),
         "Precision": precision_score(y_clf_test, preds_log_reg, pos_label=1),
         "Recall": recall_score(y_clf_test, preds_log_reg, pos_label=1),
         "F1": f1_score(y_clf_test, preds_log_reg, pos_label=1),
+        "ROC-AUC": auc_log,
+        "Train(ms)": round(t_train_log, 2),
+        "Infer(ms)": round(t_infer_log, 2),
     })
 
     plot_loss_curve(
@@ -208,25 +261,55 @@ def run_full_experiment(
     )
 
     # 2B. KNN Classifier
+    t0 = time.perf_counter()
     knn_clf = KNNClassifier(n_neighbors=5, weights="distance")
     knn_clf.fit(X_train, y_clf_train)
+    t_train_knnc = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_knn_clf = knn_clf.predict(X_test)
+    t_infer_knnc = (time.perf_counter() - t0) * 1000.0
+
+    probs_knn_raw = knn_clf.predict_proba(X_test)
+    probs_knn = [p.get(1, 0.0) for p in probs_knn_raw]
+    fpr_knn, tpr_knn, _ = roc_curve(y_clf_test, probs_knn, pos_label=1)
+    auc_knn = roc_auc_score(y_clf_test, probs_knn, pos_label=1)
+    roc_curves_data["KNN (k=5)"] = (fpr_knn, tpr_knn, auc_knn)
+
     clf_report.add_result("KNN Classifier (k=5)", {
         "Accuracy": accuracy_score(y_clf_test, preds_knn_clf),
         "Precision": precision_score(y_clf_test, preds_knn_clf, pos_label=1),
         "Recall": recall_score(y_clf_test, preds_knn_clf, pos_label=1),
         "F1": f1_score(y_clf_test, preds_knn_clf, pos_label=1),
+        "ROC-AUC": auc_knn,
+        "Train(ms)": round(t_train_knnc, 2),
+        "Infer(ms)": round(t_infer_knnc, 2),
     })
 
     # 2C. Decision Tree Classifier
+    t0 = time.perf_counter()
     dt_clf = DecisionTreeClassifier(criterion="gini", max_depth=5, min_samples_split=4)
     dt_clf.fit(X_train, y_clf_train)
+    t_train_dt = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_dt = dt_clf.predict(X_test)
+    t_infer_dt = (time.perf_counter() - t0) * 1000.0
+
+    probs_dt_raw = dt_clf.predict_proba(X_test)
+    probs_dt = [p.get(1, 0.0) for p in probs_dt_raw]
+    fpr_dt, tpr_dt, _ = roc_curve(y_clf_test, probs_dt, pos_label=1)
+    auc_dt = roc_auc_score(y_clf_test, probs_dt, pos_label=1)
+    roc_curves_data["Decision Tree"] = (fpr_dt, tpr_dt, auc_dt)
+
     clf_report.add_result("Decision Tree (Depth=5)", {
         "Accuracy": accuracy_score(y_clf_test, preds_dt),
         "Precision": precision_score(y_clf_test, preds_dt, pos_label=1),
         "Recall": recall_score(y_clf_test, preds_dt, pos_label=1),
         "F1": f1_score(y_clf_test, preds_dt, pos_label=1),
+        "ROC-AUC": auc_dt,
+        "Train(ms)": round(t_train_dt, 2),
+        "Infer(ms)": round(t_infer_dt, 2),
     })
 
     # Plot Decision Tree Feature Importances
@@ -238,23 +321,45 @@ def run_full_experiment(
     )
 
     # 2D. Gaussian Naive Bayes
+    t0 = time.perf_counter()
     gnb = GaussianNaiveBayes()
     gnb.fit(X_train, y_clf_train)
+    t_train_gnb = (time.perf_counter() - t0) * 1000.0
+
+    t0 = time.perf_counter()
     preds_gnb = gnb.predict(X_test)
+    t_infer_gnb = (time.perf_counter() - t0) * 1000.0
+
+    probs_gnb_raw = gnb.predict_proba(X_test)
+    probs_gnb = [p[1] for p in probs_gnb_raw]
+    fpr_gnb, tpr_gnb, _ = roc_curve(y_clf_test, probs_gnb, pos_label=1)
+    auc_gnb = roc_auc_score(y_clf_test, probs_gnb, pos_label=1)
+    roc_curves_data["Naive Bayes"] = (fpr_gnb, tpr_gnb, auc_gnb)
+
     clf_report.add_result("Gaussian Naive Bayes", {
         "Accuracy": accuracy_score(y_clf_test, preds_gnb),
         "Precision": precision_score(y_clf_test, preds_gnb, pos_label=1),
         "Recall": recall_score(y_clf_test, preds_gnb, pos_label=1),
         "F1": f1_score(y_clf_test, preds_gnb, pos_label=1),
+        "ROC-AUC": auc_gnb,
+        "Train(ms)": round(t_train_gnb, 2),
+        "Infer(ms)": round(t_infer_gnb, 2),
     })
 
-    # Plot Confusion Matrix for Best Classifier (e.g. Logistic Regression)
+    # Plot Confusion Matrix for Logistic Regression
     cm = confusion_matrix(y_clf_test, preds_log_reg, labels=[0, 1])
     plot_confusion_matrix_heatmap(
         cm,
         labels=["0: Normal", "1: At-Risk"],
         title="Confusion Matrix - Logistic Regression",
         save_path=os.path.join(output_dir, "confusion_matrix.png")
+    )
+
+    # Plot ROC Curves for all classifiers
+    plot_roc_curves(
+        roc_curves_data,
+        title="ROC Curves Comparison (Student Academic Risk)",
+        save_path=os.path.join(output_dir, "roc_curves.png")
     )
 
     clf_report.print_table()
@@ -265,6 +370,6 @@ def run_full_experiment(
     return {
         "regression_benchmark": reg_report.records,
         "classification_benchmark": clf_report.records,
-        "n_samples": len(scaled_X),
-        "n_features": len(scaled_X[0]),
+        "n_samples": len(combined_X),
+        "n_features": len(combined_X[0]),
     }
