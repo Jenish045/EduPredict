@@ -2,23 +2,35 @@
 EduPredict Main Experiment Entrypoint.
 
 Executes reproducible end-to-end Classical Machine Learning experiments
-predicting student academic performance and academic risk from scratch.
+using Scikit-learn estimators and scratch-implemented preprocessing, math, and metrics.
 """
 
-import sys
 import argparse
 from edupredict.experiments.runner import run_full_experiment
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="EduPredict: Classical ML Framework Implemented From Scratch"
+        description="EduPredict: Classical ML Framework"
     )
     parser.add_argument(
         "--data",
         type=str,
         default=None,
-        help="Path to student performance CSV dataset (generates synthetic if omitted)"
+        help="Path to CSV dataset (generates synthetic student dataset if omitted)"
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Target column name for custom dataset"
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default=None,
+        choices=["regression", "binary_classification", "multiclass_classification"],
+        help="Task type for custom dataset (inferred if omitted)"
     )
     parser.add_argument(
         "--output_dir",
@@ -37,7 +49,9 @@ def main():
     results = run_full_experiment(
         csv_path=args.data,
         output_dir=args.output_dir,
-        random_seed=args.seed
+        random_seed=args.seed,
+        target_column=args.target,
+        task_type=args.task,
     )
     print("\nExperiment finished with status: SUCCESS")
 

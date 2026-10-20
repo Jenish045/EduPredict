@@ -9,3 +9,6 @@ htmlcov/
 env/
 venv/
 .DS_Store
+.vscode/
+.idea/
+.streamlit/secrets.toml

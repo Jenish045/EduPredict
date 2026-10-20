@@ -140,3 +140,19 @@ class Dataset:
             lines.append(f"{col:<25} {col_type:<12} {col_missing:<8} {val_summary1:<15} {val_summary2:<15}")
 
         return "\n".join(lines)
+
+    def get_schema(
+        self,
+        target_col: Optional[str] = None,
+        task_type: Optional[str] = None,
+        ignored_columns: Optional[List[str]] = None,
+    ):
+        """Infer or return the DatasetSchema for this dataset."""
+        from edupredict.data.schema import infer_schema
+        return infer_schema(
+            headers=self.headers,
+            rows=self.rows,
+            target_column=target_col or self.target_col,
+            task_type=task_type,
+            ignored_columns=ignored_columns,
+        )

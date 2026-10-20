@@ -11,6 +11,7 @@ from edupredict.data.loader import (
 )
 from edupredict.data.dataset import Dataset
 from edupredict.data.generator import generate_student_data
+from edupredict.data.schema import DatasetSchema, infer_schema
 
 __all__ = [
     "load_csv",
@@ -20,4 +21,6 @@ __all__ = [
     "ValidationReport",
     "Dataset",
     "generate_student_data",
+    "DatasetSchema",
+    "infer_schema",
 ]

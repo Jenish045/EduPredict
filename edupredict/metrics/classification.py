@@ -19,8 +19,10 @@ Number = Union[int, float]
 
 def _check_metrics_inputs(y_true: Sequence[Any], y_pred: Sequence[Any]) -> None:
     """Validate input sequences for non-emptiness and equal dimensions."""
-    if not isinstance(y_true, (list, tuple)) or not isinstance(y_pred, (list, tuple)):
-        raise TypeError("y_true and y_pred must be list or tuple sequences")
+    if not hasattr(y_true, "__len__") or not hasattr(y_pred, "__len__"):
+        raise TypeError("y_true and y_pred must be sequence collections")
+    if isinstance(y_true, (str, dict, set)) or isinstance(y_pred, (str, dict, set)):
+        raise TypeError("y_true and y_pred must be indexed sequences (not str, dict, or set)")
     if len(y_true) == 0 or len(y_pred) == 0:
         raise ValueError("Inputs cannot be empty")
     if len(y_true) != len(y_pred):

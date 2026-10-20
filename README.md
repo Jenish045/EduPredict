@@ -1,68 +1,61 @@
-# EduPredict: A Classical Machine Learning Framework Implemented From Scratch
+# EduPredict: Classical Machine Learning Framework
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Strict Dependency Policy](https://img.shields.io/badge/dependencies-Zero%20External%20ML%20Libs-success.svg)]()
-[![Lab Project](https://img.shields.io/badge/ML%20Lab-30%20Marks-orange.svg)]()
-[![Build & Tests](https://img.shields.io/badge/tests-89%20passed-brightgreen.svg)]()
+[![Strict Dependency Policy](https://img.shields.io/badge/architecture-Scikit--learn%20Models%20%2B%20Scratch%20Infrastructure-success.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-100%20passed-brightgreen.svg)]()
 
-> **EduPredict** is an end-to-end Classical Machine Learning framework designed for predicting student academic performance (continuous score regression) and early academic risk detection (binary classification). The core distinguishing feature is that **every mathematical operation, linear algebra routine, data transformer, statistical formula, optimization algorithm, model architecture, loss function, and evaluation metric is implemented 100% from first principles using standard Python** — without relying on NumPy, Pandas, Scikit-Learn, SciPy, PyTorch, or TensorFlow.
+> **EduPredict** is an educational Classical Machine Learning framework designed for predicting student academic performance (continuous score regression) and early academic risk detection (binary classification). 
+> 
+> The core architectural principle of EduPredict is a rigorous division of responsibilities: **all mathematical operations, linear algebra routines, descriptive statistics, missing value imputation, categorical encoding, feature scaling, analytical loss functions, optimization algorithms, data splitting, and evaluation metrics are implemented entirely from first principles using standard Python**. For model training and prediction, standard **Scikit-learn estimators** are integrated into our custom, leak-free pipeline.
 
 ---
 
 ## Table of Contents
-1. [Project Overview & Objectives](#1-project-overview--objectives)
-2. [Strict Dependency Policy & Compliance](#2-strict-dependency-policy--compliance)
+1. [Project Overview & Architectural Design](#1-project-overview--architectural-design)
+2. [Strict Dependency & Boundary Policy](#2-strict-dependency--boundary-policy)
 3. [System Architecture](#3-system-architecture)
 4. [Dataset & Problem Formulation](#4-dataset--problem-formulation)
-5. [Mathematical Foundations & Linear Algebra](#5-mathematical-foundations--linear-algebra)
-6. [Data Preprocessing & Leakage Prevention](#6-data-preprocessing--leakage-prevention)
+5. [Mathematical Foundations & Linear Algebra Implemented From Scratch](#5-mathematical-foundations--linear-algebra-implemented-from-scratch)
+6. [Data Preprocessing & Data Leakage Prevention](#6-data-preprocessing--data-leakage-prevention)
 7. [Objective Functions, Loss Gradients & Optimization](#7-objective-functions-loss-gradients--optimization)
-8. [Classical ML Algorithms Implemented From Scratch](#8-classical-ml-algorithms-implemented-from-scratch)
-9. [Evaluation Metrics & ROC Analysis](#9-evaluation-metrics--roc-analysis)
-10. [Model Persistence & JSON Serialization](#10-model-persistence--json-serialization)
-11. [Multiclass One-vs-Rest Extension](#11-multiclass-one-vs-rest-extension)
-12. [Interactive Streamlit Web Dashboard](#12-interactive-streamlit-web-dashboard)
-13. [Empirical Benchmark Results](#13-empirical-benchmark-results)
-14. [Diagnostic Visualizations](#14-diagnostic-visualizations)
-15. [Setup & Execution Instructions](#15-setup--execution-instructions)
-16. [Comprehensive Viva Voce Guide](#16-comprehensive-viva-voce-guide)
-17. [Limitations & Future Scope](#17-limitations--future-scope)
+8. [Machine Learning Models & Scikit-Learn Integration](#8-machine-learning-models--scikit-learn-integration)
+9. [Evaluation Metrics Implemented From Scratch](#9-evaluation-metrics-implemented-from-scratch)
+10. [Unified MLPipeline & Experiment Suite](#10-unified-mlpipeline--experiment-suite)
+11. [Interactive Streamlit Web Dashboard](#11-interactive-streamlit-web-dashboard)
+12. [Empirical Benchmark Results](#12-empirical-benchmark-results)
+13. [Setup & Execution Instructions](#13-setup--execution-instructions)
+14. [Testing & Verification](#14-testing--verification)
 
 ---
 
-## 1. Project Overview & Objectives
+## 1. Project Overview & Architectural Design
 
-In modern machine learning education, students frequently call high-level API methods such as `model.fit()` and `model.predict()` without understanding numerical stability, gradient derivations, matrix conditioning, data leakage traps, or decision boundary geometry. 
+In modern machine learning education, practitioners often treat pipelines as black boxes, calling high-level libraries without grasping numerical stability, gradient derivations, matrix conditioning, data leakage traps, or decision boundary geometry.
 
-**EduPredict** was engineered as a 30-mark college Machine Learning Lab project to address this gap. It solves two critical educational tasks:
-1. **Academic Performance Regression:** Predict continuous student final examination scores ($[0.0, 100.0]$) given study hours, prior term scores, class attendance, and assignment completion.
-2. **Academic Risk Early Warning:** Classify students into **Normal / Good Standing ($0$)** vs. **At-Risk ($1$)** ($< 60.0\%$ threshold) to enable timely academic mentoring and targeted tutoring.
-
-### Why Implementation From Scratch Matters
-- **Transparent Mathematics:** Demystifies "black-box" solvers by exposing analytical loss gradients, Gaussian-Jordan elimination with row pivoting, recursive tree entropy partitioning, and trapezoidal numerical integration.
-- **Scientific Integrity:** Demonstrates rigorous data leakage prevention by isolating transformation statistics ($\mu, \sigma, \min, \max$, category vocabularies) strictly to the training fold.
-- **Deep Algorithmic Mastery:** Provides direct hands-on proof of convergence dynamics, numerical overflow/underflow handling, and computational time/space complexity.
+EduPredict addresses this by demystifying classical machine learning:
+- **Two Educational Objectives:**
+  1. **Academic Performance Regression:** Predict continuous student final examination scores ($\hat{y} \in [0.0, 100.0]$) given study hours, prior exam scores, class attendance, and assignment completion.
+  2. **Academic Risk Early Warning:** Classify students into **Normal / Good Standing ($0$)** vs. **At-Risk ($1$)** ($< 60.0\%$ threshold) to enable timely academic mentoring and targeted interventions.
+- **Generic Tabular Capabilities:** While pre-configured for student analytics, the framework dynamically infers schemas, detects numerical and categorical features, handles missing values, and trains models on any tabular dataset.
 
 ---
 
-## 2. Strict Dependency Policy & Compliance
+## 2. Strict Dependency & Boundary Policy
 
-### Core Implementation Policy
-The core package (`edupredict/`) strictly forbids importing:
-- ❌ **NumPy**
-- ❌ **Pandas**
-- ❌ **Scikit-Learn**
-- ❌ **SciPy**
-- ❌ **Statsmodels**
-- ❌ **PyTorch / TensorFlow / Keras / JAX**
+EduPredict enforces a strict architectural boundary verified by automated Abstract Syntax Tree (AST) scanning (`tests/test_dependency_compliance.py`):
 
-All core calculations leverage only Python standard library modules: `math`, `random`, `csv`, `collections`, `json`, `time`, `typing`, `unittest`, and `ast`.
-
-### Auxiliary Presentation Layer
-- `matplotlib`: Permitted solely as an optional plotting canvas for saving high-resolution PNG diagnostic figures. All data calculations, binning, correlations, and curve points are calculated by EduPredict before being passed to Matplotlib.
-- `streamlit`: Permitted solely as an interactive web UI wrapper for live classroom demonstrations.
-
-> **Honest Note on Transitive Dependencies:** While pip-installing `matplotlib` or `streamlit` may introduce transitive wheel dependencies (such as NumPy) into your Python site-packages, **our code never imports or uses them**. AST verification in `tests/test_dependency_compliance.py` parses the Abstract Syntax Tree of every `.py` file in `edupredict/` to guarantee zero prohibited imports.
+| Component Area | Allowed Tooling | Prohibited Libraries |
+| :--- | :--- | :--- |
+| **Linear Algebra & Vector Math** | **Pure Python Standard Library** (`math`) | NumPy, SciPy |
+| **Descriptive Statistics** | **Pure Python Standard Library** | NumPy, SciPy, Pandas, Statsmodels |
+| **Data Ingestion & Parsing** | **Pure Python Standard Library** (`csv`) | Pandas |
+| **Preprocessing & Transformers** | **Custom From Scratch** (`SimpleImputer`, `OneHotEncoder`, `StandardScaler`) | Scikit-learn preprocessing |
+| **Data Splitting & CV** | **Custom From Scratch** (`train_test_split`, `KFold`, `StratifiedKFold`) | Scikit-learn model_selection |
+| **Loss Functions & Gradients** | **Custom From Scratch** (MSE, MAE, BCE, analytical gradients) | PyTorch, TensorFlow, SciPy |
+| **Optimization** | **Custom From Scratch** (Gradient Descent, Momentum, Early Stopping) | Scikit-learn optimizers, PyTorch |
+| **Evaluation Metrics** | **Custom From Scratch** (Accuracy, Precision, Recall, F1, Confusion Matrix, ROC-AUC, MSE, RMSE, MAE, R²) | Scikit-learn metrics |
+| **Predictive Estimators** | **Scikit-learn** (`LinearRegression`, `Ridge`, `LogisticRegression`, `KNeighborsClassifier`, `KNeighborsRegressor`, `DecisionTreeClassifier`, `DecisionTreeRegressor`, `GaussianNB`) | Custom reimplementations |
+| **Presentation & UI** | **Streamlit & Matplotlib** | Seaborn, Plotly |
 
 ---
 
@@ -70,365 +63,308 @@ All core calculations leverage only Python standard library modules: `math`, `ra
 
 ```mermaid
 graph TD
-    A["Raw Student CSV / Synthetic Generator"] --> B["CSV Ingestion & Schema Validator (loader.py)"]
-    B --> C["Tabular Container (dataset.py)"]
-    C --> D["Train/Test Split (split.py)"]
+    A["Tabular CSV / Synthetic Generator"] --> B["CSV Ingestion & Schema Validator (loader.py)"]
+    B --> C["Dataset Schema & Type Inference (schema.py)"]
+    C --> D["Unified Split Mechanism (split.py)"]
     
-    subgraph "Leakage-Free Preprocessing (Fit on Train Only)"
-        D --> E["SimpleImputer (Mean/Mode)"]
-        E --> F["OneHotEncoder (Categorical)"]
-        F --> G["StandardScaler / MinMaxScaler"]
+    subgraph "Leak-Free Preprocessing (Fitted on Train Split Only)"
+        D --> E["SimpleImputer (Mean for Numeric, Mode for Categorical)"]
+        E --> F["OneHotEncoder (Categorical Features)"]
+        F --> G["StandardScaler / MinMaxScaler (Normalized Features)"]
     end
     
-    subgraph "Core Math & Optimization Engine"
-        H["Vector & Matrix Math (matrices.py, vectors.py)"]
-        I["Descriptive Stats (stats.py)"]
-        J["Analytical Gradients (losses/)"]
-        K["Gradient Descent Optimizer (Batch/Momentum)"]
+    subgraph "Scikit-Learn Model Registry (models/)"
+        H1["LinearRegression / Ridge"]
+        H2["LogisticRegression"]
+        H3["KNeighborsClassifier / Regressor"]
+        H4["DecisionTreeClassifier / Regressor"]
+        H5["GaussianNB"]
     end
+
+    G --> I["MLPipeline (pipeline.py)"]
+    H1 --> I
+    H2 --> I
+    H3 --> I
+    H4 --> I
+    H5 --> I
     
-    G --> L["Model Training & Evaluation"]
-    H --> L
-    I --> L
-    J --> L
-    K --> L
-    
-    subgraph "Scratch Classical ML Models"
-        L --> M1["Linear Regression (GD & Normal Eq)"]
-        L --> M2["Logistic Regression (BCE + Sigmoid)"]
-        L --> M3["KNN Classifier & Regressor"]
-        L --> M4["Decision Tree Classifier"]
-        L --> M5["Gaussian Naive Bayes"]
+    subgraph "Scratch Evaluation Metrics (metrics/)"
+        I --> J1["Regression: MSE, RMSE, MAE, R²"]
+        I --> J2["Classification: Accuracy, Precision, Recall, F1, ROC-AUC"]
     end
-    
-    subgraph "Evaluation & Deployment"
-        M1 --> N["Metrics (MSE, R2, Acc, F1, ROC-AUC)"]
-        M2 --> N
-        M3 --> N
-        M4 --> N
-        M5 --> N
-        N --> O["Diagnostic Visualizations (plots.py)"]
-        N --> P["JSON Model Serialization (serialization.py)"]
-        N --> Q["Interactive Streamlit Web Dashboard (app.py)"]
-    end
+
+    I --> K["CLI Runner (run_experiments.py)"]
+    I --> L["Streamlit Web App (app.py)"]
 ```
 
 ---
 
 ## 4. Dataset & Problem Formulation
 
-EduPredict includes a local 600-student dataset stored in [`data/student_performance.csv`](data/student_performance.csv) (documented thoroughly in [`data/DATASET.md`](data/DATASET.md)).
+### 4.1 Provenance Notice
+The benchmark dataset (`data/student_performance.csv`) is a **reproducible synthetic dataset** modeled after classical student achievement benchmarks (Cortez & Silva, 2008). It was generated with realistic non-linear relationships, socio-environmental interactions, and ~2% injected missingness for offline evaluation.
 
-### Feature Schema
-| Feature | Type | Valid Range | Description |
-|---|---|---|---|
-| `student_id` | Categorical | String (`STU_xxxx`) | Unique identifier (excluded from ML features) |
-| `study_hours` | Numeric | $[0.0, 50.0]$ | Dedicated self-study hours per week |
-| `attendance` | Numeric | $[0.0, 100.0]$ | Percentage of lectures and lab sessions attended |
-| `past_score` | Numeric | $[0.0, 100.0]$ | Prior term / midterm standardized baseline score |
-| `assignments_completed` | Numeric | $[0, 10]$ | Number of lab practical assignments submitted |
-| `parental_education` | Categorical | `HighSchool`, `Bachelor`, `Master` | Highest parental educational attainment |
-| `internet_access` | Categorical | `Yes`, `No` | Availability of reliable internet access |
-| `tutoring` | Categorical | `Yes`, `No` | Enrolled in extra tutoring or academic support |
-| **`final_exam_score`** | **Numeric Target** | $[0.0, 100.0]$ | Continuous regression outcome |
-| **`academic_risk`** | **Binary Target** | $0$ (Normal) / $1$ (At-Risk) | Binary classification outcome ($< 60.0\%$ threshold) |
+### 4.2 Feature Dictionary
+| Feature Name | Type | Value Range | Description |
+| :--- | :--- | :--- | :--- |
+| `student_id` | Identifier | `STU_0001` - `STU_0600` | Unique student record key (auto-detected as ignored). |
+| `study_hours` | Numerical (Float) | $4.0 - 40.0$ hrs/wk | Average dedicated weekly self-study hours. |
+| `attendance` | Numerical (Float) | $45.0\% - 100.0\%$ | Class attendance percentage across the term. |
+| `past_score` | Numerical (Float) | $30.0 - 95.0$ marks | Performance score in prerequisite / midterm exams. |
+| `assignments_completed` | Numerical (Integer) | $0 - 10$ | Count of completed and submitted laboratory exercises. |
+| `parental_education` | Categorical | `HighSchool`, `Bachelor`, `Master` | Highest educational level of parents/guardians. |
+| `internet_access` | Categorical | `Yes`, `No` | High-speed internet access at residence. |
+| `tutoring` | Categorical | `Yes`, `No` | Enrollment in supplemental academic tutoring. |
+| **`final_exam_score`** | **Target (Regression)** | **$0.0 - 100.0$** | Continuous cumulative final examination score. |
+| **`academic_risk`** | **Target (Classification)** | **`0` or `1`** | `1` if `final_exam_score < 60.0`, else `0`. |
 
 ---
 
-## 5. Mathematical Foundations & Linear Algebra
+## 5. Mathematical Foundations & Linear Algebra Implemented From Scratch
 
-### 1. Vector Operations (`edupredict.math.vectors`)
-- **Dot Product:** $\mathbf{u} \cdot \mathbf{v} = \sum_{i=1}^d u_i v_i$
-- **$L_2$ Euclidean Norm:** $\|\mathbf{v}\|_2 = \sqrt{\sum_{i=1}^d v_i^2}$
-- **$L_1$ Manhattan Norm:** $\|\mathbf{v}\|_1 = \sum_{i=1}^d |v_i|$
-- **Euclidean Distance:** $d_E(\mathbf{u}, \mathbf{v}) = \sqrt{\sum_{i=1}^d (u_i - v_i)^2}$
-- **Manhattan Distance:** $d_M(\mathbf{u}, \mathbf{v}) = \sum_{i=1}^d |u_i - v_i|$
+All fundamental numerical routines are implemented in `edupredict/math/` without third-party dependencies:
 
-### 2. Matrix Algebra & Inversion (`edupredict.math.matrices`)
-- **Matrix Multiplication:** $\mathbf{C}_{m \times p} = \mathbf{A}_{m \times n} \mathbf{B}_{n \times p}$ computed in $O(m \cdot n \cdot p)$.
-- **Gauss-Jordan Matrix Inversion with Partial Pivoting:**
-  To solve $(\mathbf{X}^T\mathbf{X} + \lambda \mathbf{I})^{-1}$, the algorithm augments matrix $\mathbf{A}$ with the identity matrix: $[\mathbf{A} \mid \mathbf{I}_{n \times n}]$.
-  For each pivot column $k \in \{0, \dots, n-1\}$:
-  1. Find row $i \ge k$ with the largest $|A_{i,k}|$ (pivot selection to minimize floating-point roundoff).
-  2. Swap row $k$ with row $i$.
-  3. Divide pivot row $k$ by pivot element $A_{k,k}$.
-  4. Eliminate non-zero elements in column $k$ for all other rows: $R_r \leftarrow R_r - A_{r,k} R_k$.
-  5. The right half $[\mathbf{I} \mid \mathbf{A}^{-1}]$ contains the inverted matrix.
+### 5.1 Vector Calculus (`vectors.py`)
+- **Dot Product:**
+  $$\mathbf{u} \cdot \mathbf{v} = \sum_{i=1}^n u_i v_i$$
+- **Euclidean ($L_2$) Distance:**
+  $$d_2(\mathbf{u}, \mathbf{v}) = \sqrt{\sum_{i=1}^n (u_i - v_i)^2}$$
+- **Manhattan ($L_1$) Distance:**
+  $$d_1(\mathbf{u}, \mathbf{v}) = \sum_{i=1}^n |u_i - v_i|$$
 
-### 3. Descriptive Statistics (`edupredict.math.stats`)
-- **Sample Variance:** $s^2 = \frac{1}{N - 1} \sum_{i=1}^N (x_i - \bar{x})^2$
-- **Covariance:** $\text{Cov}(x, y) = \frac{1}{N - 1} \sum_{i=1}^N (x_i - \bar{x})(y_i - \bar{y})$
-- **Pearson Correlation ($r$):**
-  $$r_{xy} = \frac{\text{Cov}(x, y)}{s_x s_y} \in [-1.0, 1.0]$$
-- **Pairwise Correlation Matrix:** Computes $R_{i,j} = r(X_i, X_j)$ from first principles.
+### 5.2 Matrix Operations & Inversion (`matrices.py`)
+- **Matrix Multiplication:**
+  $$(\mathbf{A}\mathbf{B})_{ij} = \sum_{k=1}^p A_{ik} B_{kj}$$
+- **Matrix Inversion via Gauss-Jordan Elimination with Partial Pivoting:**
+  To solve $(\mathbf{X}^T\mathbf{X})^{-1}$ without external BLAS routines, we construct the augmented matrix $[\mathbf{A} \mid \mathbf{I}]$:
+  1. **Row Pivoting:** Find $\max_{k \ge i} |A_{ki}|$ and swap rows to maximize the pivot element, mitigating floating-point instability.
+  2. **Row Scaling:** Normalize the pivot row so that $A_{ii} = 1.0$.
+  3. **Row Elimination:** For all $k \neq i$, subtract $A_{ki} \times \text{Row}_i$ to eliminate non-diagonal elements.
+  4. Returns the inverted matrix with singular matrix exception handling.
 
-### 4. Numerical Stability & Activations (`edupredict.math.activations`)
+### 5.3 Descriptive Statistics (`stats.py`)
+- **Sample Variance & Standard Deviation:**
+  $$s^2 = \frac{1}{n-1} \sum_{i=1}^n (x_i - \bar{x})^2, \quad s = \sqrt{s^2}$$
+- **Pearson Product-Moment Correlation:**
+  $$r_{xy} = \frac{\sum_{i=1}^n (x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\sum (x_i - \bar{x})^2} \sqrt{\sum (y_i - \bar{y})^2}}$$
+
+### 5.4 Activations & Numerical Stability (`activations.py`)
 - **Numerically Stable Sigmoid:**
   $$\sigma(z) = \begin{cases} \frac{1}{1 + e^{-z}} & \text{if } z \ge 0 \\ \frac{e^z}{1 + e^z} & \text{if } z < 0 \end{cases}$$
-- **Softmax with Max Subtraction Guard:**
-  $$\text{Softmax}(\mathbf{z})_i = \frac{e^{z_i - \max(\mathbf{z})}}{\sum_j e^{z_j - \max(\mathbf{z})}}$$
-- **Probability Clipping:** Clamps probabilities to $[10^{-15}, 1 - 10^{-15}]$ before logarithmic evaluation to prevent $\ln(0)$ crashes.
+  Preventing 64-bit IEEE 754 floating-point overflow for large negative exponents.
+- **Safe Logarithm:**
+  $$\text{safe\_log}(p) = \ln(\max(\min(p, 1 - 10^{-15}), 10^{-15}))$$
 
 ---
 
-## 6. Data Preprocessing & Leakage Prevention
+## 6. Data Preprocessing & Data Leakage Prevention
 
-### The Golden Rule of ML Evaluation
-*All statistics (means, medians, modes, min/max, scaling parameters, categorical vocabularies) must be computed exclusively from the training partition and frozen.*
+Data leakage occurs when test data statistics inadvertently contaminate the training process. EduPredict strictly enforces isolation:
 
+```
+[Raw Records]
+     │
+     ▼
+[train_test_split] ──► Preserves exact sample indices across features & targets
+     │
+     ├──► Train Split (X_train, y_train)
+     │         │
+     │         ├──► Fit SimpleImputer(mean / mode)
+     │         ├──► Fit OneHotEncoder(drop_first=False)
+     │         └──► Fit StandardScaler(mean, std)
+     │
+     └──► Test Split (X_test, y_test)
+               │
+               └──► TRANSFORM ONLY using frozen training statistics!
+```
+
+### Preprocessors Implemented From Scratch (`edupredict/preprocessing/`):
 1. **`SimpleImputer`:**
-   - Numerical: Imputes missing values with training mean $\mu_{\text{train}}$ or median.
-   - Categorical: Imputes missing entries with training mode.
+   - Numerical: Imputes missing entries using training feature mean or median.
+   - Categorical: Imputes missing entries using training feature mode.
 2. **`OneHotEncoder`:**
-   - Fits unique categories from training rows.
-   - Handles unseen categories at test time by emitting an all-zero vector rather than failing or leaking.
+   - Learns unique category vocabularies from training data only.
+   - Handles unseen categories in test or inference data safely by assigning all-zero indicator vectors.
 3. **`StandardScaler`:**
-   - Computes $\mu_{\text{train}}$ and $\sigma_{\text{train}}$ on training set.
-   - Transforms test records via $z = \frac{x - \mu_{\text{train}}}{\sigma_{\text{train}}}$.
-   - Guards against constant features ($\sigma < 10^{-12}$) by setting scale factor to $1.0$ (avoiding division by zero).
+   - Standardizes features to zero mean and unit variance ($z = \frac{x - \mu}{\sigma}$).
+   - Handles constant features ($\sigma = 0$) by setting scaled values to $0.0$.
 
 ---
 
 ## 7. Objective Functions, Loss Gradients & Optimization
 
-### 1. Mean Squared Error (Regression)
-$$J(\mathbf{w}, b) = \frac{1}{m} \sum_{i=1}^m (\mathbf{w}^T \mathbf{x}_i + b - y_i)^2$$
-**Analytical Gradient:**
-$$\nabla_{\mathbf{w}} J = \frac{2}{m} \mathbf{X}^T (\mathbf{X}\mathbf{w} + b - \mathbf{y}) + 2\lambda \mathbf{w}$$
-$$\frac{\partial J}{\partial b} = \frac{2}{m} \sum_{i=1}^m (\mathbf{w}^T \mathbf{x}_i + b - y_i)$$
+Available as mathematical and educational implementations in `edupredict/losses/` and `edupredict/optimization/`:
 
-### 2. Binary Cross-Entropy (Classification)
-$$J(\mathbf{w}, b) = -\frac{1}{m} \sum_{i=1}^m [y_i \ln(\hat{p}_i) + (1 - y_i) \ln(1 - \hat{p}_i)] + \lambda \|\mathbf{w}\|_2^2$$
-where $\hat{p}_i = \sigma(\mathbf{w}^T \mathbf{x}_i + b)$.
+### 7.1 Analytical Loss Functions
+- **Mean Squared Error (MSE):**
+  $$J(\mathbf{w}, b) = \frac{1}{m} \sum_{i=1}^m (\hat{y}_i - y_i)^2, \quad \nabla_{\mathbf{w}} J = \frac{2}{m} \mathbf{X}^T (\hat{\mathbf{y}} - \mathbf{y})$$
+- **Binary Cross-Entropy (Log Loss):**
+  $$J(\mathbf{w}, b) = -\frac{1}{m} \sum_{i=1}^m \left[ y_i \ln(p_i) + (1 - y_i) \ln(1 - p_i) \right], \quad \nabla_{\mathbf{w}} J = \frac{1}{m} \mathbf{X}^T (\mathbf{p} - \mathbf{y})$$
 
-**Analytical Gradient with respect to linear logits $z_i$:**
-$$\frac{\partial J}{\partial z_i} = \frac{1}{m} (\hat{p}_i - y_i)$$
-$$\nabla_{\mathbf{w}} J = \frac{1}{m} \mathbf{X}^T (\hat{\mathbf{p}} - \mathbf{y}) + 2\lambda \mathbf{w}$$
-$$\frac{\partial J}{\partial b} = \frac{1}{m} \sum_{i=1}^m (\hat{p}_i - y_i)$$
-
-### 3. Finite-Difference Gradient Verification
-To guarantee mathematical correctness, analytical derivatives are verified against centered numerical finite differences in `tests/test_losses.py`:
-$$\frac{\partial J}{\partial w_j} \approx \frac{J(\mathbf{w} + \epsilon \mathbf{e}_j) - J(\mathbf{w} - \epsilon \mathbf{e}_j)}{2\epsilon}, \quad \epsilon = 10^{-5}$$
-Verified with relative difference tolerance $< 10^{-5}$.
-
-### 4. Gradient Descent Optimizer (`gradient_descent.py`)
-- Supports **Batch GD**, **Mini-batch GD**, and **Stochastic GD (SGD)**.
-- **Polyak Momentum:** $\mathbf{v}_{t+1} = \beta \mathbf{v}_t + \alpha \nabla J(\mathbf{w}_t)$, $\mathbf{w}_{t+1} = \mathbf{w}_t - \mathbf{v}_{t+1}$.
-- **Early Stopping:** Tracks best validation loss with configurable `patience` and convergence tolerance $\delta = 10^{-6}$.
+### 7.2 Gradient Descent Optimization Engine (`gradient_descent.py`)
+- Configurable **Batch**, **Mini-Batch**, and **Stochastic Gradient Descent (SGD)**.
+- **Polyak Momentum Update:**
+  $$\mathbf{v}_t = \beta \mathbf{v}_{t-1} + \nabla J(\mathbf{w}_t), \quad \mathbf{w}_{t+1} = \mathbf{w}_t - \alpha \mathbf{v}_t$$
+- **Early Stopping & Tolerance Checks:** Monitors loss delta across consecutive epochs with configurable patience.
 
 ---
 
-## 8. Classical ML Algorithms Implemented From Scratch
+## 8. Machine Learning Models & Scikit-Learn Integration
 
-### 1. Linear Regression (`edupredict.models.linear_regression`)
-- **Gradient Descent Solver:** Iteratively optimizes weights and bias using MSE gradients.
-- **Normal Equation Solver (Closed-Form):**
-  $$\mathbf{w}^* = (\mathbf{X}^T \mathbf{X} + \lambda \mathbf{I})^{-1} \mathbf{X}^T \mathbf{y}$$
-  Uses our scratch Gauss-Jordan inversion with $L_2$ Tikhonov regularization ($\lambda = 10^{-4}$) to prevent matrix singularity.
+EduPredict interfaces standard Scikit-learn estimators through a centralized registry (`edupredict/models/registry.py`):
 
-### 2. Logistic Regression (`edupredict.models.logistic_regression`)
-- Evaluates linear logit scores, applies numerically stable sigmoid, and learns weights via BCE gradient descent.
-- Configurable decision threshold (default $0.5$) and `predict_proba` output.
+### Supported Regression Estimators:
+- `Linear Regression` (`sklearn.linear_model.LinearRegression`)
+- `Ridge Regression` (`sklearn.linear_model.Ridge`)
+- `KNN Regressor` (`sklearn.neighbors.KNeighborsRegressor`)
+- `Decision Tree Regressor` (`sklearn.tree.DecisionTreeRegressor`)
 
-### 3. K-Nearest Neighbors (`edupredict.models.knn`)
-- Non-parametric instance-based learner.
-- **Metrics:** Euclidean ($L_2$) and Manhattan ($L_1$).
-- **Weights:** Uniform ($1.0$) or Distance-Weighted ($w_i = \frac{1}{d_i + 10^{-8}}$).
-- **Deterministic Tie-Breaking:** In classification, ties in vote count are resolved by picking the class with the **minimum Euclidean distance to its closest neighbor in the set**, with lexicographical fallback.
-- **KNN Regressor:** Continuous prediction via uniform or distance-weighted average.
+### Supported Classification Estimators:
+- `Logistic Regression` (`sklearn.linear_model.LogisticRegression`)
+- `KNN Classifier` (`sklearn.neighbors.KNeighborsClassifier`)
+- `Decision Tree Classifier` (`sklearn.tree.DecisionTreeClassifier`)
+- `Gaussian Naive Bayes` (`sklearn.naive_bayes.GaussianNB`)
 
-### 4. Decision Tree Classifier (`edupredict.models.decision_tree`)
-- Recursive greedy binary splitting.
-- **Splitting Criteria:**
-  - **Gini Impurity:** $I_G(S) = 1 - \sum_{k=1}^K p_k^2$
-  - **Entropy:** $H(S) = -\sum_{k=1}^K p_k \log_2(p_k)$
-- **Pruning & Regularization:** `max_depth`, `min_samples_split`, `min_impurity_decrease`.
-- **Feature Importances:** Weighted impurity reduction accumulated across internal tree splits and normalized to sum to $1.0$.
-
-### 5. Gaussian Naive Bayes Baseline (`edupredict.models.naive_bayes`)
-- Computes class priors $P(y = c)$, feature means $\mu_{c,j}$, and variances $\sigma_{c,j}^2$.
-- Evaluates log-likelihood via the continuous Gaussian probability density:
-  $$\ln P(x_j \mid c) = -\frac{1}{2}\ln(2\pi\sigma_{c,j}^2) - \frac{(x_j - \mu_{c,j})^2}{2\sigma_{c,j}^2}$$
-  with variance smoothing $\epsilon = 10^{-9}$.
+Models are instantiated dynamically with validated hyperparameters based on the chosen task.
 
 ---
 
-## 9. Evaluation Metrics & ROC Analysis
+## 9. Evaluation Metrics Implemented From Scratch
 
-### 1. Classification Metrics (`edupredict.metrics.classification`)
-- **Confusion Matrix:** True Positives ($TP$), False Positives ($FP$), True Negatives ($TN$), False Negatives ($FN$).
-- **Accuracy:** $\frac{TP + TN}{TP + TN + FP + FN}$
-- **Precision:** $\frac{TP}{TP + FP}$
-- **Recall (Sensitivity):** $\frac{TP}{TP + FN}$
+All performance metrics in EduPredict are calculated using our own formulations (`edupredict/metrics/`):
+
+### 9.1 Regression Metrics
+- **Mean Squared Error (MSE):** $\text{MSE} = \frac{1}{m} \sum_{i=1}^m (\hat{y}_i - y_i)^2$
+- **Root Mean Squared Error (RMSE):** $\text{RMSE} = \sqrt{\text{MSE}}$
+- **Mean Absolute Error (MAE):** $\text{MAE} = \frac{1}{m} \sum_{i=1}^m |\hat{y}_i - y_i|$
+- **Coefficient of Determination ($R^2$):**
+  $$R^2 = 1 - \frac{\sum_{i=1}^m (\hat{y}_i - y_i)^2}{\sum_{i=1}^m (y_i - \bar{y})^2}$$
+  Guarded against division-by-zero for constant target sequences.
+
+### 9.2 Classification Metrics
+- **Confusion Matrix:** Counts True Positives (TP), False Positives (FP), True Negatives (TN), and False Negatives (FN).
+- **Accuracy:** $\frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}}$
+- **Precision:** $\frac{\text{TP}}{\text{TP} + \text{FP}}$ (with configurable `zero_division` fallback)
+- **Recall:** $\frac{\text{TP}}{\text{TP} + \text{FN}}$
 - **$F_1$-Score:** $2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}$
-
-### 2. ROC Curve & ROC-AUC via Trapezoidal Integration
-- Generates True Positive Rate ($\text{TPR}$) vs False Positive Rate ($\text{FPR}$) across all distinct predicted probability thresholds.
-- Computes Area Under the ROC Curve ($\text{AUC}$) using the **trapezoidal numerical integration rule**:
-  $$\text{AUC} = \sum_{i=1}^{M-1} \frac{\text{TPR}_i + \text{TPR}_{i-1}}{2} \cdot |\text{FPR}_i - \text{FPR}_{i-1}|$$
-
-### 3. Regression Metrics (`edupredict.metrics.regression`)
-- **MSE:** $\frac{1}{m} \sum_{i=1}^m (\hat{y}_i - y_i)^2$
-- **RMSE:** $\sqrt{\text{MSE}}$
-- **MAE:** $\frac{1}{m} \sum_{i=1}^m |\hat{y}_i - y_i|$
-- **$R^2$ Score:** $1 - \frac{\sum (\hat{y}_i - y_i)^2}{\sum (y_i - \bar{y})^2}$
+- **ROC Curves & Numerical AUC Integration:**
+  Generates decision thresholds from unique predicted probabilities, computes $(\text{FPR}, \text{TPR})$ coordinates, and integrates the Area Under the Curve using the **trapezoidal rule**:
+  $$\text{AUC} = \sum_{k=1}^K \frac{\text{TPR}_k + \text{TPR}_{k-1}}{2} \times (\text{FPR}_k - \text{FPR}_{k-1})$$
 
 ---
 
-## 10. Model Persistence & JSON Serialization
+## 10. Unified MLPipeline & Experiment Suite
 
-EduPredict includes a native serialization module (`edupredict.models.serialization`) that exports and restores trained models to human-readable JSON files without `pickle`:
+Both the CLI runner and Streamlit dashboard invoke a single, canonical pipeline:
 
 ```python
-from edupredict.models.serialization import save_model, load_model
+from edupredict.data.schema import infer_schema
+from edupredict.pipeline.pipeline import MLPipeline, ExperimentSuite
 
-# Save trained model to disk
-save_model(trained_lr, "artifacts/linear_regression.json")
+# 1. Infer schema
+schema = infer_schema(headers, rows, target_column="final_exam_score", task_type="regression")
 
-# Restore model in a new session ready for inference
-loaded_lr = load_model("artifacts/linear_regression.json")
-predictions = loaded_lr.predict(X_test)
+# 2. Initialize leak-free pipeline
+pipe = MLPipeline(schema=schema, model_name="Linear Regression", random_seed=42)
+
+# 3. Fit pipeline (splits data, fits transformers strictly on train, fits model)
+pipe.fit(raw_X, y, test_size=0.2)
+
+# 4. Access genuine test metrics computed from scratch
+print(pipe.test_metrics)
+
+# 5. Predict on unseen raw input records
+prediction = pipe.predict_single({"study_hours": 25.0, "attendance": 85.0, ...})
 ```
 
-Supported for all models: `LinearRegression`, `LogisticRegression`, `KNNClassifier`, `KNNRegressor`, `DecisionTreeClassifier`, and `GaussianNaiveBayes`.
-
 ---
 
-## 11. Multiclass One-vs-Rest Extension
+## 11. Interactive Streamlit Web Dashboard
 
-For predicting multi-category student grade bands (e.g. `A`, `B`, `C`, `D`, `F`), EduPredict provides `OneVsRestClassifier` in `edupredict/models/multiclass.py`:
-- Trains $K$ independent binary classifiers for $K$ classes.
-- Predicts posterior probability distributions across classes and outputs $\arg\max_k P(y = c_k \mid \mathbf{x})$.
+Launch the interactive interface:
 
----
-
-## 12. Interactive Streamlit Web Dashboard
-
-EduPredict includes a Streamlit web application ([`app.py`](app.py)):
-
-```powershell
+```bash
 streamlit run app.py
 ```
 
-### Dashboard Tabs
-1. **🔮 Live Student Performance & Risk Predictor:** Interactive sliders for study hours, attendance %, prior exam score, assignments completed, tutoring, and parental education. Instantly displays predicted continuous score, letter grade band, academic risk badge (Safe vs. At-Risk), and risk probability progress gauge.
-2. **📊 Dataset & Math Summaries:** Interactive data table, summary statistics ($\mu, \text{median}, \sigma, \min, \max$) calculated from scratch, and zero-leakage pipeline explanation.
-3. **⚙️ Interactive Training Studio:** Evaluators can tweak learning rates, epochs, tree depths, and $k$ live, train models on-demand, and observe execution latency in milliseconds and test scores.
-4. **📈 Diagnostic Visualizations & Benchmarks:** Displays all 9 high-resolution diagnostic plots and benchmark comparison tables.
-5. **📚 Viva Voce & Architecture Guide:** Comprehensive examiner Q&A covering derivations, edge cases, and mathematical design decisions.
+### Dashboard Tabs:
+1. **📊 Dataset Overview & Validation:** Displays dataset shape, tabular preview, missing value counts, schema integrity report, and scratch-calculated correlation heatmaps.
+2. **📈 Regression Studio:** Train Linear Regression, Ridge, KNN Regressor, or Decision Tree Regressor. Tune hyperparameters, inspect live R²/MSE/RMSE/MAE metrics, view actual-vs-predicted plots, and test single-student continuous score predictions dynamically.
+3. **🎯 Classification Studio:** Train Logistic Regression, KNN, Decision Trees, or Gaussian Naive Bayes. Configure hyperparameters, inspect Accuracy/Precision/Recall/F1/ROC-AUC metrics, view confusion matrices, and evaluate risk probability on single students.
+4. **📋 Empirical Benchmark Suite:** Executes all candidate models in real time and presents comprehensive comparison tables and diagnostic visualizations.
+5. **📖 Architecture & Methods:** In-depth documentation of mathematical formulations, leakage prevention, and design decisions.
 
 ---
 
-## 13. Empirical Benchmark Results
+## 12. Empirical Benchmark Results
 
-> **Dataset Provenance & Nature:** The benchmark dataset (`data/student_performance.csv`) is a **reproducible synthetic dataset** modeled after classical student achievement benchmarks (Cortez & Silva, 2008). It was generated deliberately with realistic non-linear relationships, environmental interactions, and intermittent missingness for reproducible offline laboratory evaluation. Results reflect this synthetic data distribution; no specific real-world accuracy is promised.
+Evaluated on the 600-student benchmark cohort (80/20 train/test split, random seed = 42):
 
-Evaluated on the 600-student cohort using an 80/20 train/test split (480 train / 120 test) with unified aligned splitting and strict zero-leakage preprocessing:
+### 1. Final Exam Score Prediction (Regression)
+| Model | MSE | RMSE | MAE | $R^2$ | Train Time | Infer Time |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Linear Regression** | **15.0098** | **3.8742** | **3.0986** | **0.8996** | 19.58 ms | 0.27 ms |
+| **Ridge Regression** | 15.0487 | 3.8793 | 3.1041 | 0.8993 | 1.63 ms | 0.28 ms |
+| **KNN Regressor ($k=5$)** | 47.1613 | 6.8674 | 5.4287 | 0.6845 | 1.70 ms | 1.97 ms |
+| **Decision Tree Regressor**| 49.8733 | 7.0621 | 5.4953 | 0.6664 | 2.20 ms | 0.35 ms |
 
-### Task 1: Predicting Final Exam Score (Regression)
-| Model | MSE | RMSE | MAE | $R^2$ Score | Training Time | Inference Time |
-|---|---|---|---|---|---|---|
-| **Linear Regression (GD)** | **14.1756** | **3.7651** | **3.1520** | **0.8847** | 1825 ms | 1.85 ms |
-| **Linear Regression (Normal Eq)** | **14.1744** | **3.7649** | **3.1518** | **0.8847** | 48.8 ms | 1.83 ms |
-| **KNN Regressor ($k=7$)** | 28.4933 | 5.3379 | 4.4592 | 0.7683 | 0.98 ms | 894 ms |
+### 2. Early Academic Risk Detection (Classification)
+| Model | Accuracy | Precision | Recall | $F_1$-Score | ROC-AUC | Train Time | Infer Time |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Logistic Regression** | **91.67%** | **0.9138** | **0.9138** | **0.9138** | **0.9672** | 5.62 ms | 0.42 ms |
+| **Gaussian Naive Bayes** | 85.83% | 0.8596 | 0.8448 | 0.8522 | 0.9410 | 2.15 ms | 0.39 ms |
+| **Decision Tree ($d=5$)**| 81.67% | 0.8913 | 0.7069 | 0.7885 | 0.8897 | 2.08 ms | 0.29 ms |
+| **KNN Classifier ($k=5$)**| 81.67% | 0.8600 | 0.7414 | 0.7963 | 0.9066 | 1.77 ms | 2.53 ms |
 
-*Key Insight:* Linear Regression captures the underlying academic performance relationships with a robust $R^2 \approx 0.88$. The closed-form Normal Equation solves in ~49 ms compared to 1825 ms for iterative Gradient Descent while yielding identical parameters. KNN regression achieves solid non-parametric performance ($R^2 = 0.77$) with near-zero training time, but requires ~894 ms inference latency for exhaustive distance scanning.
-
-### Task 2: Academic Risk Early Warning (Classification)
-| Model | Accuracy | Precision | Recall | $F_1$-Score | ROC-AUC | Training Time | Inference Time |
-|---|---|---|---|---|---|---|---|
-| **Logistic Regression** | **91.67%** | **0.9138** | **0.9138** | **0.9138** | **0.9669** | 10100 ms | 1.98 ms |
-| **Gaussian Naive Bayes** | 85.83% | 0.8596 | 0.8448 | 0.8522 | 0.9410 | 7.70 ms | 3.20 ms |
-| **KNN Classifier ($k=5$)** | 83.33% | 0.8654 | 0.7759 | 0.8182 | 0.9103 | 0.93 ms | 1086 ms |
-| **Decision Tree (Depth=5)** | 81.67% | 0.8600 | 0.7414 | 0.7963 | 0.8897 | 510 ms | 0.37 ms |
-
-*Key Insight on Pipeline Correctness:* Fixing the feature/label misalignment defect and preprocessing leakage established genuine model learning, yielding an ROC-AUC of 0.9669 for Logistic Regression and strong discriminatory capability across all four classical algorithms.
+*All reported metrics are computed directly by EduPredict's scratch metric functions on actual test predictions.*
 
 ---
 
-## 14. Diagnostic Visualizations
+## 13. Setup & Execution Instructions
 
-All diagnostic plots are automatically generated and saved to `artifacts/`:
-1. `artifacts/correlation_heatmap.png`: Pearson feature correlation matrix calculated from first principles.
-2. `artifacts/feature_distributions.png`: Multi-panel histograms of student numerical indicators.
-3. `artifacts/linear_regression_loss.png`: MSE loss convergence curve over 600 epochs.
-4. `artifacts/logistic_regression_loss.png`: BCE log-loss convergence curve over 500 epochs.
-5. `artifacts/actual_vs_predicted_scores.png`: Scatter plot comparing ground truth exam scores with predicted scores.
-6. `artifacts/confusion_matrix.png`: Annotated heatmap of Logistic Regression predictions.
-7. `artifacts/feature_importances.png`: Horizontal bar chart of Decision Tree impurity reduction.
-8. `artifacts/roc_curves.png`: Comparative ROC curves with trapezoidal AUC values for all classifiers.
-9. `artifacts/classification_comparison.png`: Grouped bar chart comparing Accuracy, Precision, Recall, F1, and ROC-AUC.
+### Prerequisites
+- Python 3.10 or higher.
 
----
+### Installation
+Clone the repository and install the minimal presentation dependencies:
 
-## 15. Setup & Execution Instructions
-
-### Step 1: Install Optional Presentation Dependencies
-```powershell
+```bash
+git clone https://github.com/Jenish045/EduPredict.git
+cd EduPredict
 pip install -r requirements.txt
 ```
 
-### Step 2: Run All Automated Unit Tests (84 Tests)
-```powershell
-python -m unittest discover -s tests -v
+### CLI Experiment Execution
+Run the full benchmarking suite on the default student dataset:
+
+```bash
+python run_experiments.py --seed 42
 ```
 
-### Step 3: Run the AST Strict Dependency Compliance Test
-```powershell
-python -m unittest tests/test_dependency_compliance.py -v
+Run on an arbitrary tabular dataset:
+
+```bash
+python run_experiments.py --data path/to/dataset.csv --target price --task regression
 ```
 
-### Step 4: Run the End-to-End Experiment Benchmark
-```powershell
-python run_experiments.py --seed 42 --output_dir artifacts
-```
-
-### Step 5: Launch the Interactive Streamlit Web Application
-```powershell
+### Interactive Web Application
+```bash
 streamlit run app.py
 ```
 
 ---
 
-## 16. Comprehensive Viva Voce Guide
+## 14. Testing & Verification
 
-### Q1: Why implement Classical ML algorithms from scratch rather than using Scikit-Learn?
-**Answer:** High-level ML libraries abstract away mathematical foundations, numerical stability safeguards, and computational mechanics. Implementing from scratch proves complete mastery of:
-- Analytical gradient derivation for arbitrary loss functions.
-- Linear algebra implementations like Gauss-Jordan elimination with row swapping.
-- Exact understanding of data leakage prevention (fitting scalers and imputers on $X_{\text{train}}$ only).
-- Edge-case handling (probability clipping, singular matrix guards, deterministic tie-breaking).
+Run the complete automated test suite (100 unit, integration, and compliance tests):
 
-### Q2: How did you verify the mathematical correctness of your analytical gradients?
-**Answer:** In `tests/test_losses.py`, we implemented a centered finite-difference numerical gradient checker:
-$$\frac{\partial J}{\partial w_j} \approx \frac{J(\mathbf{w} + \epsilon \mathbf{e}_j) - J(\mathbf{w} - \epsilon \mathbf{e}_j)}{2\epsilon}$$
-with step size $\epsilon = 10^{-5}$. Both the MSE and BCE analytical gradients matched numerical approximations within a $10^{-5}$ tolerance.
+```bash
+python -m unittest discover -s tests -v
+```
 
-### Q3: How is matrix inversion implemented in the Normal Equation solver?
-**Answer:** We implemented **Gauss-Jordan Elimination with partial pivoting** in `edupredict/math/matrices.py`. The algorithm augments the square matrix with an identity matrix $[\mathbf{A} \mid \mathbf{I}]$ and applies elementary row operations. To avoid numeric instability from small pivots, it performs row swaps to select the largest absolute value in the pivot column. Additionally, an $L_2$ regularization penalty ($\lambda = 10^{-4}$) is added to the diagonal ($\mathbf{X}^T\mathbf{X} + \lambda\mathbf{I}$) to guarantee invertibility.
+### AST Dependency Compliance Scanner
+Verify that prohibited libraries are never imported in custom scratch modules:
 
-### Q4: How is the ROC-AUC score computed without external packages?
-**Answer:** In `edupredict/metrics/classification.py`, we sort unique predicted probabilities descending to define decision thresholds. For each threshold, we construct the confusion matrix and compute $\text{FPR} = \frac{FP}{FP + TN}$ and $\text{TPR} = \frac{TP}{TP + FN}$. The Area Under the Curve is then calculated via **trapezoidal numerical integration**:
-$$\text{AUC} = \sum_{i=1}^{M-1} \frac{\text{TPR}_i + \text{TPR}_{i-1}}{2} \cdot |\text{FPR}_i - \text{FPR}_{i-1}|$$
-
-### Q5: How do you handle tie-breaking and distance weighting in KNN?
-**Answer:** In `edupredict/models/knn.py`, distances are calculated using Euclidean ($L_2$) or Manhattan ($L_1$) formulas. When votes are tied among candidate classes, our tie-breaker selects the class whose nearest neighbor is closest in distance to the query sample, falling back to lexicographical sorting. Under distance weighting, votes are weighted by $w_i = \frac{1}{d_i + 10^{-8}}$, preventing zero-division errors for identical points.
-
-### Q6: How does the Decision Tree compute feature importances?
-**Answer:** Feature importance is calculated by accumulating the reduction in impurity (Gini or Shannon Entropy) at each internal split:
-$$\Delta I = \frac{N_{\text{node}}}{N_{\text{total}}} \left( I_{\text{parent}} - \frac{N_L}{N_{\text{node}}} I_{\text{left}} - \frac{N_R}{N_{\text{node}}} I_{\text{right}} \right)$$
-These values are aggregated per feature and normalized so their sum across all features equals $1.0$.
-
----
-
-## 17. Limitations & Future Scope
-
-### Limitations
-1. **Exhaustive Distance Search in KNN:** Current KNN implementation performs linear scanning ($O(N \cdot d)$), which becomes computationally expensive for large datasets ($N > 50,000$).
-2. **Single-Threaded Execution:** Pure Python loops do not leverage SIMD hardware vectorization or multi-threaded CPU cores.
-3. **Greedy Decision Tree Splitting:** Recursive partitioning is axis-aligned and does not find oblique decision boundaries.
-
-### Future Scope
-1. **Spatial Tree Acceleration:** Implement $k$-d trees or Ball trees from scratch to reduce KNN search complexity to $O(\log N)$.
-2. **Ensemble Methods From Scratch:** Implement Random Forest (bagging + feature sub-sampling) and Gradient Boosting from first principles.
-3. **Adaptive Optimizers:** Implement AdaGrad and Adam optimizers with exponential moving averages of first and second gradient moments.
+```bash
+python -m unittest tests/test_dependency_compliance.py -v
+```

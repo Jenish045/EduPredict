@@ -8,8 +8,7 @@ from edupredict.model_selection.split import train_test_split, train_test_split_
 from edupredict.preprocessing.imputer import SimpleImputer
 from edupredict.preprocessing.encoder import OneHotEncoder
 from edupredict.preprocessing.scaler import StandardScaler
-from edupredict.models.linear_regression import LinearRegression
-from edupredict.models.logistic_regression import LogisticRegression
+from edupredict.models import LinearRegression, LogisticRegression
 from edupredict.metrics.regression import r2_score, mean_squared_error
 from edupredict.metrics.classification import accuracy_score, f1_score, roc_auc_score
 
@@ -180,14 +179,14 @@ class TestPipelineIntegrity(unittest.TestCase):
         scaled_te = scaler.transform(comb_te)
 
         # 9. Train regression model
-        lr = LinearRegression(solver="gd", learning_rate=0.05, max_epochs=200)
+        lr = LinearRegression()
         lr.fit(scaled_tr, y_reg_tr)
         preds_reg = lr.predict(scaled_te)
         r2 = r2_score(y_reg_te, preds_reg)
         self.assertTrue(r2 > 0.8, f"Expected R2 > 0.8 on clean data, got {r2}")
 
         # Train classification model
-        clf = LogisticRegression(learning_rate=0.1, max_epochs=200)
+        clf = LogisticRegression(max_iter=500, random_state=42)
         clf.fit(scaled_tr, y_clf_tr)
         preds_clf = clf.predict(scaled_te)
         acc = accuracy_score(y_clf_te, preds_clf)

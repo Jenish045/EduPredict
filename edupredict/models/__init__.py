@@ -1,26 +1,39 @@
 """
 Models module for EduPredict.
+
+Exposes Scikit-learn estimators for predictive tasks along with
+model registry and serialization helpers.
 """
 
-from edupredict.models.base import BaseModel
-from edupredict.models.linear_regression import LinearRegression
-from edupredict.models.logistic_regression import LogisticRegression
-from edupredict.models.knn import KNNClassifier, KNNRegressor
-from edupredict.models.decision_tree import DecisionTreeClassifier
-from edupredict.models.naive_bayes import GaussianNaiveBayes
-from edupredict.models.multiclass import OneVsRestClassifier
+from edupredict.models.registry import (
+    LinearRegression,
+    LogisticRegression,
+    Ridge,
+    KNNClassifier,
+    KNNRegressor,
+    DecisionTreeClassifier,
+    DecisionTreeRegressor,
+    GaussianNaiveBayes,
+    get_model,
+    list_models,
+    REGRESSION_MODELS,
+    CLASSIFICATION_MODELS,
+)
 from edupredict.models.serialization import save_model, load_model
 
 __all__ = [
-    "BaseModel",
     "LinearRegression",
     "LogisticRegression",
+    "Ridge",
     "KNNClassifier",
     "KNNRegressor",
     "DecisionTreeClassifier",
+    "DecisionTreeRegressor",
     "GaussianNaiveBayes",
-    "OneVsRestClassifier",
+    "get_model",
+    "list_models",
     "save_model",
     "load_model",
+    "REGRESSION_MODELS",
+    "CLASSIFICATION_MODELS",
 ]
-
