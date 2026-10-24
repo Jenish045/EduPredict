@@ -172,17 +172,17 @@ def validate_dataset(
 def load_csv(
     filepath: str,
     has_header: bool = True,
-    delimiter: str = ",",
+    delimiter: Optional[str] = None,
     auto_cast: bool = True,
     expected_headers: Optional[List[str]] = None
 ) -> Tuple[List[str], List[List[Any]]]:
     """
-    Load a CSV file from disk with strict validation.
+    Load a CSV file from disk with strict validation and auto-delimiter detection.
     
     Args:
         filepath: Path to CSV file.
         has_header: If True, first row is treated as column headers.
-        delimiter: CSV separator character (default ',').
+        delimiter: CSV separator character (if None, auto-detects ';' vs ',' vs '\t').
         auto_cast: If True, converts numeric strings to float/int and empty to None.
         expected_headers: Optional list of headers that must match exactly.
         
@@ -195,6 +195,19 @@ def load_csv(
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
+
+    if delimiter is None:
+        with open(filepath, mode="r", newline="", encoding="utf-8") as f:
+            first_line = f.readline()
+        semis = first_line.count(";")
+        commas = first_line.count(",")
+        tabs = first_line.count("\t")
+        if semis > commas and semis > tabs:
+            delimiter = ";"
+        elif tabs > commas and tabs > semis:
+            delimiter = "\t"
+        else:
+            delimiter = ","
 
     headers: List[str] = []
     rows: List[List[Any]] = []

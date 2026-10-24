@@ -13,7 +13,6 @@ Expected Input Shapes & Conventions:
 - y_logits: 1D sequence of length N with unbounded real values z in (-inf, +inf).
 """
 
-import math
 from typing import Sequence, List, Union
 from edupredict.math.activations import clip_probability, safe_log
 

@@ -81,7 +81,7 @@ class TestPipeline(unittest.TestCase):
         raw_X, y = self.dataset.split_features_target(feature_cols=schema.feature_names, target_col="is_luxury")
         y = [int(v) for v in y]
 
-        pipe = MLPipeline(schema=schema, model_name="Logistic Regression", random_seed=42)
+        pipe = MLPipeline(schema=schema, model_name="KNN Classifier", random_seed=42)
         pipe.fit(raw_X, y, test_size=0.25)
 
         self.assertTrue(pipe.is_fitted)
@@ -98,7 +98,7 @@ class TestPipeline(unittest.TestCase):
         raw_X, y = self.dataset.split_features_target(feature_cols=schema.feature_names, target_col="is_luxury")
         y = [int(v) for v in y]
 
-        pipe = MLPipeline(schema=schema, model_name="Logistic Regression", random_seed=42)
+        pipe = MLPipeline(schema=schema, model_name="KNN Classifier", random_seed=42)
         pipe.fit(raw_X, y, test_size=0.25)
 
         sample_record = {
@@ -164,14 +164,43 @@ class TestPipeline(unittest.TestCase):
         """Test model registry retrieval, listing, and validation."""
         reg_models = list_models("regression")
         self.assertIn("Linear Regression", reg_models)
-        self.assertIn("Ridge Regression", reg_models)
 
         clf_models = list_models("classification")
-        self.assertIn("Logistic Regression", clf_models)
-        self.assertIn("Gaussian Naive Bayes", clf_models)
+        self.assertIn("KNN Classifier", clf_models)
+        self.assertIn("Decision Tree Classifier", clf_models)
 
         with self.assertRaises(ValueError):
             get_model("NonExistentModel", task="regression")
+
+    def test_three_way_split_and_data_isolation(self):
+        """Verify strict pairwise disjointness and leakage isolation in 3-way partition."""
+        from edupredict.model_selection.split import train_test_split_indices
+        n_samples = 395
+        # 1. Split into Dev (80% = 316) and Holdout Test (20% = 79)
+        dev_idx, test_idx = train_test_split_indices(n_samples, test_size=0.20, random_seed=42)
+        self.assertEqual(len(dev_idx), 316)
+        self.assertEqual(len(test_idx), 79)
+
+        # 2. Split Dev into Train-Sub (80% = 253) and Validation (20% = 63)
+        train_sub_subidx, val_subidx = train_test_split_indices(len(dev_idx), test_size=0.20, random_seed=42)
+        train_sub_idx = [dev_idx[i] for i in train_sub_subidx]
+        val_idx = [dev_idx[i] for i in val_subidx]
+
+        self.assertEqual(len(train_sub_idx), 253)
+        self.assertEqual(len(val_idx), 63)
+
+        # Pairwise disjointness
+        set_tr = set(train_sub_idx)
+        set_va = set(val_idx)
+        set_te = set(test_idx)
+
+        self.assertEqual(set_tr.intersection(set_va), set())
+        self.assertEqual(set_tr.intersection(set_te), set())
+        self.assertEqual(set_va.intersection(set_te), set())
+
+        # Completeness
+        union_all = set_tr.union(set_va).union(set_te)
+        self.assertEqual(union_all, set(range(n_samples)))
 
 
 if __name__ == "__main__":

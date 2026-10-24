@@ -1,13 +1,9 @@
 """
-Regression loss functions and gradients implemented from scratch.
+Regression loss functions and analytical gradients implemented from first principles.
 
-Provides:
-- mean_squared_error: J = (1 / (2*m)) * sum((y_pred - y_true)^2) or (1 / m) * sum((y_pred - y_true)^2)
-- mean_absolute_error: MAE = (1 / m) * sum(|y_pred - y_true|)
-- mse_gradient: dJ/d(y_pred) = (1 / m) * (y_pred - y_true)
+Strictly zero third-party dependencies and zero external math library imports.
 """
 
-import math
 from typing import Sequence, List, Union
 
 Number = Union[int, float]
@@ -23,7 +19,7 @@ def _check_loss_inputs(y_true: Sequence[Number], y_pred: Sequence[Number]) -> No
 def mean_squared_error(y_true: Sequence[Number], y_pred: Sequence[Number]) -> float:
     """
     Mean Squared Error:
-    MSE = (1 / N) * sum_{i=1}^N (y_true_i - y_pred_i)^2.
+    MSE = (1 / N) * sum_{i=1}^N (y_pred_i - y_true_i)^2.
     """
     _check_loss_inputs(y_true, y_pred)
     n = len(y_true)
@@ -37,23 +33,23 @@ def mean_squared_error(y_true: Sequence[Number], y_pred: Sequence[Number]) -> fl
 def mean_absolute_error(y_true: Sequence[Number], y_pred: Sequence[Number]) -> float:
     """
     Mean Absolute Error:
-    MAE = (1 / N) * sum_{i=1}^N |y_true_i - y_pred_i|.
+    MAE = (1 / N) * sum_{i=1}^N |y_pred_i - y_true_i|.
     """
     _check_loss_inputs(y_true, y_pred)
     n = len(y_true)
     total_abs_err = 0.0
     for i in range(n):
-        err = abs(float(y_pred[i]) - float(y_true[i]))
-        total_abs_err += err
+        err = float(y_pred[i]) - float(y_true[i])
+        total_abs_err += err if err >= 0.0 else -err
     return total_abs_err / float(n)
 
 
 def mse_gradient(y_true: Sequence[Number], y_pred: Sequence[Number]) -> List[float]:
     """
-    Gradient of MSE with respect to predictions y_pred:
-    d(MSE) / d(y_pred_i) = (2 / N) * (y_pred_i - y_true_i).
+    Analytical gradient of MSE with respect to predictions y_pred:
+    dJ / d(y_pred_i) = (2 / N) * (y_pred_i - y_true_i).
     """
     _check_loss_inputs(y_true, y_pred)
     n = len(y_true)
     factor = 2.0 / float(n)
-    return [factor * (float(y_pred[i]) - float(y_true[i])) for i in range(n)]
+    return [factor * (float(yp) - float(yt)) for yt, yp in zip(y_true, y_pred)]

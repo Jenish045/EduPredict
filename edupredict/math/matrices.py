@@ -1,12 +1,11 @@
 """
-Matrix operations implemented from scratch using 2D Python lists (List[List[float]]).
+Matrix operations implemented from first principles using 2D Python lists.
 
-Strictly zero third-party dependencies (no NumPy).
-Supports transpose, multiplication, matrix-vector multiplication,
-shape inspection, Gaussian elimination, and matrix inversion.
+Strictly zero third-party dependencies and zero external mathematical library imports (no NumPy, no math module).
+Supports matrix shape validation, transposition, multiplication, matrix-vector multiplication,
+identity matrix creation, and Gauss-Jordan elimination with partial row pivoting for matrix inversion.
 """
 
-import math
 from typing import List, Tuple, Sequence, Union
 
 Number = Union[int, float]
@@ -14,10 +13,20 @@ Matrix = List[List[float]]
 Vector = List[float]
 
 
+def _is_nan(val: Number) -> bool:
+    """Check if value is NaN without importing math."""
+    return val != val
+
+
+def _is_inf(val: Number) -> bool:
+    """Check if value is infinity without importing math."""
+    return val == float("inf") or val == float("-inf")
+
+
 def get_shape(A: Sequence[Sequence[Number]]) -> Tuple[int, int]:
     """
-    Get the (rows, cols) shape of a 2D matrix.
-    Raises ValueError if empty or non-rectangular.
+    Get (rows, cols) shape of a 2D matrix.
+    Raises ValueError if empty or ragged, and TypeError if non-numeric.
     """
     if not isinstance(A, (list, tuple)) or len(A) == 0:
         raise ValueError("Matrix must be a non-empty 2D sequence")
@@ -33,7 +42,7 @@ def get_shape(A: Sequence[Sequence[Number]]) -> Tuple[int, int]:
         for c_idx, val in enumerate(row):
             if not isinstance(val, (int, float)) or isinstance(val, bool):
                 raise TypeError(f"A[{r_idx}][{c_idx}] must be a float or int, got {type(val).__name__}")
-            if math.isnan(val) or math.isinf(val):
+            if _is_nan(val) or _is_inf(val):
                 raise ValueError(f"A[{r_idx}][{c_idx}] contains invalid numerical value: {val}")
     return num_rows, num_cols
 
@@ -55,133 +64,124 @@ def create_identity_matrix(n: int) -> Matrix:
     return I
 
 
-def matrix_transpose(A: Sequence[Sequence[Number]]) -> Matrix:
-    """
-    Transpose matrix A (m x n) -> A^T (n x m).
-    A^T[j][i] = A[i][j].
-    """
+def matrix_add(A: Sequence[Sequence[Number]], B: Sequence[Sequence[Number]]) -> Matrix:
+    """Add two matrices element-wise: C = A + B."""
+    rows_A, cols_A = get_shape(A)
+    rows_B, cols_B = get_shape(B)
+    if rows_A != rows_B or cols_A != cols_B:
+        raise ValueError(
+            f"Matrix dimensions must match for addition: ({rows_A}, {cols_A}) vs ({rows_B}, {cols_B})"
+        )
+    return [[float(A[r][c]) + float(B[r][c]) for c in range(cols_A)] for r in range(rows_A)]
+
+
+def matrix_scalar_mul(A: Sequence[Sequence[Number]], scalar: Number) -> Matrix:
+    """Multiply a matrix by a scalar: C = scalar * A."""
     rows, cols = get_shape(A)
-    T = create_zeros_matrix(cols, rows)
-    for i in range(rows):
-        for j in range(cols):
-            T[j][i] = float(A[i][j])
-    return T
+    s = float(scalar)
+    return [[float(A[r][c]) * s for c in range(cols)] for r in range(rows)]
+
+
+def matrix_transpose(A: Sequence[Sequence[Number]]) -> Matrix:
+    """Transpose matrix A (m x n) -> A^T (n x m)."""
+    rows, cols = get_shape(A)
+    return [[float(A[r][c]) for r in range(rows)] for c in range(cols)]
 
 
 def matrix_multiply(A: Sequence[Sequence[Number]], B: Sequence[Sequence[Number]]) -> Matrix:
     """
-    Multiply matrix A (m x k) with matrix B (k x n) to produce C (m x n).
-    C[i][j] = sum_p A[i][p] * B[p][j].
+    Compute standard matrix multiplication: C = A * B.
+    Dimensions: A is (m x p), B is (p x n) -> C is (m x n).
     """
-    r_A, c_A = get_shape(A)
-    r_B, c_B = get_shape(B)
-    if c_A != r_B:
-        raise ValueError(f"Cannot multiply matrix shapes ({r_A}, {c_A}) and ({r_B}, {c_B}): columns of A must match rows of B")
+    rows_A, cols_A = get_shape(A)
+    rows_B, cols_B = get_shape(B)
 
-    C = create_zeros_matrix(r_A, c_B)
-    for i in range(r_A):
-        for k in range(c_A):
+    if cols_A != rows_B:
+        raise ValueError(
+            f"Inner matrix dimensions must match: A cols ({cols_A}) != B rows ({rows_B})"
+        )
+
+    C = create_zeros_matrix(rows_A, cols_B)
+    for i in range(rows_A):
+        for k in range(cols_A):
             a_ik = float(A[i][k])
-            if a_ik == 0.0:
-                continue
-            for j in range(c_B):
+            for j in range(cols_B):
                 C[i][j] += a_ik * float(B[k][j])
     return C
 
 
-def matrix_vector_mul(A: Sequence[Sequence[Number]], x: Sequence[Number]) -> Vector:
+def matrix_vector_mul(A: Sequence[Sequence[Number]], v: Sequence[Number]) -> Vector:
+    """Compute matrix-vector product: y = A * v."""
+    rows_A, cols_A = get_shape(A)
+    if not isinstance(v, (list, tuple)) or len(v) == 0:
+        raise ValueError("Vector v must be a non-empty sequence")
+    if len(v) != cols_A:
+        raise ValueError(f"Dimension mismatch: A has {cols_A} cols, but v has length {len(v)}")
+
+    result: Vector = [0.0] * rows_A
+    for i in range(rows_A):
+        dot = 0.0
+        for j in range(cols_A):
+            dot += float(A[i][j]) * float(v[j])
+        result[i] = dot
+    return result
+
+
+def invert_matrix(A: Sequence[Sequence[Number]], tol: float = 1e-12) -> Matrix:
     """
-    Multiply matrix A (m x n) with vector x (n) to produce vector y (m).
-    y[i] = sum_j A[i][j] * x[j].
-    """
-    r_A, c_A = get_shape(A)
-    if len(x) != c_A:
-        raise ValueError(f"Matrix columns ({c_A}) do not match vector length ({len(x)})")
+    Compute inverse of an n x n square matrix using Gauss-Jordan elimination with partial row pivoting.
     
-    y = [0.0] * r_A
-    for i in range(r_A):
-        acc = 0.0
-        row = A[i]
-        for j in range(c_A):
-            acc += float(row[j]) * float(x[j])
-        y[i] = acc
-    return y
-
-
-def matrix_add(A: Sequence[Sequence[Number]], B: Sequence[Sequence[Number]]) -> Matrix:
+    Augments matrix A with identity matrix I: [A | I], performs elementary row operations
+    to reduce the left side to reduced row echelon form (I), resulting in [I | A^(-1)].
+    Raises ValueError if matrix is singular (non-invertible) or non-square.
     """
-    Element-wise matrix addition: C[i][j] = A[i][j] + B[i][j].
-    """
-    r_A, c_A = get_shape(A)
-    r_B, c_B = get_shape(B)
-    if r_A != r_B or c_A != c_B:
-        raise ValueError(f"Matrix shapes ({r_A}, {c_A}) and ({r_B}, {c_B}) must match for addition")
-    C = create_zeros_matrix(r_A, c_A)
-    for i in range(r_A):
-        for j in range(c_A):
-            C[i][j] = float(A[i][j]) + float(B[i][j])
-    return C
+    rows, cols = get_shape(A)
+    if rows != cols:
+        raise ValueError(f"Only square matrices can be inverted, got shape ({rows}, {cols})")
+    n = rows
 
+    # Construct augmented matrix [A | I]
+    augmented: Matrix = []
+    for i in range(n):
+        row = [float(A[i][j]) for j in range(n)]
+        row.extend([1.0 if i == j else 0.0 for j in range(n)])
+        augmented.append(row)
 
-def matrix_scalar_mul(A: Sequence[Sequence[Number]], c: Number) -> Matrix:
-    """
-    Multiply matrix A by scalar c: C[i][j] = c * A[i][j].
-    """
-    r_A, c_A = get_shape(A)
-    c_flt = float(c)
-    C = create_zeros_matrix(r_A, c_A)
-    for i in range(r_A):
-        for j in range(c_A):
-            C[i][j] = float(A[i][j]) * c_flt
-    return C
-
-
-def invert_matrix(A: Sequence[Sequence[Number]], eps: float = 1e-12) -> Matrix:
-    """
-    Invert square matrix A using Gauss-Jordan elimination with partial pivoting.
-    Strictly standard library implementation.
-    Raises ValueError if matrix is not square or singular (non-invertible).
-    """
-    n, cols = get_shape(A)
-    if n != cols:
-        raise ValueError(f"Matrix must be square to invert, got shape ({n}, {cols})")
-
-    # Create augmented matrix [A | I]
-    aug = [[float(A[i][j]) for j in range(n)] + [1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
-
+    # Gauss-Jordan elimination with partial pivoting
     for col in range(n):
-        # Partial pivoting: find max element in current column
-        pivot_row = col
-        max_val = abs(aug[col][col])
+        # 1. Partial pivoting: find largest absolute value in current column at or below diagonal
+        max_row = col
+        max_val = augmented[col][col]
+        max_val_abs = max_val if max_val >= 0.0 else -max_val
         for r in range(col + 1, n):
-            candidate = abs(aug[r][col])
-            if candidate > max_val:
-                max_val = candidate
-                pivot_row = r
+            val = augmented[r][col]
+            val_abs = val if val >= 0.0 else -val
+            if val_abs > max_val_abs:
+                max_val_abs = val_abs
+                max_row = r
 
-        if max_val < eps:
-            raise ValueError(f"Matrix is singular or near-singular (pivot {max_val} < {eps}) and cannot be inverted")
+        if max_val_abs < tol:
+            raise ValueError(f"Matrix is singular or nearly singular (pivot={max_val_abs:.2e} < {tol:.2e})")
 
-        # Swap rows if needed
-        if pivot_row != col:
-            aug[col], aug[pivot_row] = aug[pivot_row], aug[col]
+        # Swap rows if necessary
+        if max_row != col:
+            augmented[col], augmented[max_row] = augmented[max_row], augmented[col]
 
-        # Normalize pivot row
-        pivot = aug[col][col]
+        # 2. Scale pivot row so diagonal element equals 1.0
+        pivot = augmented[col][col]
         for c in range(2 * n):
-            aug[col][c] /= pivot
+            augmented[col][c] /= pivot
 
-        # Eliminate other rows
+        # 3. Eliminate all other entries in current column (both above and below diagonal)
         for r in range(n):
             if r != col:
-                factor = aug[r][col]
-                if abs(factor) > 0.0:
+                factor = augmented[r][col]
+                if factor != 0.0:
                     for c in range(2 * n):
-                        aug[r][c] -= factor * aug[col][c]
+                        augmented[r][c] -= factor * augmented[col][c]
 
-    # Extract right side
-    inv = create_zeros_matrix(n, n)
+    # Extract right-hand side [A^(-1)]
+    inv_A: Matrix = []
     for i in range(n):
-        for j in range(n):
-            inv[i][j] = aug[i][n + j]
-    return inv
+        inv_A.append(augmented[i][n:])
+    return inv_A

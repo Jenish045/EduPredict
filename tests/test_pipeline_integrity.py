@@ -8,7 +8,7 @@ from edupredict.model_selection.split import train_test_split, train_test_split_
 from edupredict.preprocessing.imputer import SimpleImputer
 from edupredict.preprocessing.encoder import OneHotEncoder
 from edupredict.preprocessing.scaler import StandardScaler
-from edupredict.models import LinearRegression, LogisticRegression
+from edupredict.models import LinearRegression, KNNClassifier
 from edupredict.metrics.regression import r2_score, mean_squared_error
 from edupredict.metrics.classification import accuracy_score, f1_score, roc_auc_score
 
@@ -186,7 +186,7 @@ class TestPipelineIntegrity(unittest.TestCase):
         self.assertTrue(r2 > 0.8, f"Expected R2 > 0.8 on clean data, got {r2}")
 
         # Train classification model
-        clf = LogisticRegression(max_iter=500, random_state=42)
+        clf = KNNClassifier(n_neighbors=3)
         clf.fit(scaled_tr, y_clf_tr)
         preds_clf = clf.predict(scaled_te)
         acc = accuracy_score(y_clf_te, preds_clf)

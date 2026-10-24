@@ -48,6 +48,7 @@ class MLPipeline:
         imputer_strategy_num: str = "mean",
         imputer_strategy_cat: str = "mode",
         scaler_type: str = "standard",
+        threshold: float = 0.5,
         random_seed: int = 42,
     ) -> None:
         self.schema = schema
@@ -56,6 +57,7 @@ class MLPipeline:
         self.imputer_strategy_num = imputer_strategy_num
         self.imputer_strategy_cat = imputer_strategy_cat
         self.scaler_type = scaler_type
+        self.threshold = threshold
         self.random_seed = random_seed
 
         # Preprocessors
@@ -192,19 +194,29 @@ class MLPipeline:
 
         # 6. Inference and Evaluation on Test Set using scratch metrics
         t_inf0 = time.perf_counter()
-        self.y_test_pred = list(self.estimator.predict(self.X_test_scaled))
-        self.inference_time_ms = (time.perf_counter() - t_inf0) * 1000.0
-
         if is_classification and hasattr(self.estimator, "predict_proba"):
             try:
                 raw_proba = self.estimator.predict_proba(self.X_test_scaled)
-                # If binary, extract positive class probability
+                # If binary, extract positive class probability using classes_ index
                 if len(raw_proba[0]) == 2:
-                    self.y_test_proba = [float(p[1]) for p in raw_proba]
+                    pos_idx = 1
+                    if hasattr(self.estimator, "classes_") and 1 in self.estimator.classes_:
+                        pos_idx = list(self.estimator.classes_).index(1)
+                    self.y_test_proba = [float(p[pos_idx]) for p in raw_proba]
+                    if self.threshold != 0.5:
+                        self.y_test_pred = [1 if p >= self.threshold else 0 for p in self.y_test_proba]
+                    else:
+                        self.y_test_pred = list(self.estimator.predict(self.X_test_scaled))
                 else:
                     self.y_test_proba = None
+                    self.y_test_pred = list(self.estimator.predict(self.X_test_scaled))
             except Exception:
                 self.y_test_proba = None
+                self.y_test_pred = list(self.estimator.predict(self.X_test_scaled))
+        else:
+            self.y_test_proba = None
+            self.y_test_pred = list(self.estimator.predict(self.X_test_scaled))
+        self.inference_time_ms = (time.perf_counter() - t_inf0) * 1000.0
 
         self.test_metrics = self._compute_metrics(self.y_test, self.y_test_pred, self.y_test_proba)
         self.is_fitted = True
@@ -281,12 +293,19 @@ class MLPipeline:
         if not hasattr(self.estimator, "predict_proba"):
             raise AttributeError(f"Estimator '{self.model_name}' does not support predict_proba.")
         scaled = self.transform_records(raw_records)
-        return self.estimator.predict_proba(scaled).tolist()
+        probs = self.estimator.predict_proba(scaled)
+        if hasattr(probs, "tolist"):
+            return probs.tolist()
+        return [list(r) for r in probs]
 
     def predict_single(self, record_dict: Dict[str, Any]) -> Any:
         """
         Predict target for a single input dictionary mapping feature names to values.
         """
+        if "classification" in self.schema.task_type and self.threshold != 0.5 and hasattr(self.estimator, "predict_proba"):
+            proba_dict = self.predict_single_proba(record_dict)
+            if proba_dict and 1 in proba_dict:
+                return 1 if proba_dict[1] >= self.threshold else 0
         row = [record_dict.get(f) for f in self.schema.feature_names]
         preds = self.predict([row])
         return preds[0]
@@ -400,11 +419,13 @@ class ExperimentSuite:
         schema: DatasetSchema,
         raw_X: List[List[Any]],
         y: List[Any],
+        custom_params: Optional[Dict[str, Dict[str, Any]]] = None,
         random_seed: int = 42,
     ) -> None:
         self.schema = schema
         self.raw_X = raw_X
         self.y = y
+        self.custom_params = custom_params or {}
         self.random_seed = random_seed
         self.pipelines: Dict[str, MLPipeline] = {}
         self.results: Dict[str, Dict[str, Any]] = {}
@@ -420,9 +441,11 @@ class ExperimentSuite:
         report = BenchmarkReport(task_name=f"{self.schema.target_column} ({task_str})")
 
         for m_name in selected_models:
+            m_params = self.custom_params.get(m_name, {})
             pipe = MLPipeline(
                 schema=self.schema,
                 model_name=m_name,
+                model_params=m_params,
                 random_seed=self.random_seed,
             )
             pipe.fit(self.raw_X, self.y)

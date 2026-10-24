@@ -11,6 +11,7 @@ from edupredict.visualization.plots import (
     plot_correlation_heatmap,
     plot_feature_distributions,
     plot_classification_comparison,
+    plot_model_complexity_curves,
 )
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "plot_correlation_heatmap",
     "plot_feature_distributions",
     "plot_classification_comparison",
+    "plot_model_complexity_curves",
 ]
 

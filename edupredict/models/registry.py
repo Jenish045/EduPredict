@@ -1,64 +1,35 @@
 """
-Scikit-learn model registry and factory for EduPredict.
+Custom model registry and factory for EduPredict.
 
 Provides validated model instantiation for regression and classification tasks,
-exposing standard Scikit-learn estimators configured for educational benchmarking.
+exposing custom estimators built from first principles without external ML libraries.
 """
 
 from typing import Dict, Any, List, Optional, Type
-from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from sklearn.naive_bayes import GaussianNB
 
-# Aliases for consistent naming
-KNNClassifier = KNeighborsClassifier
-KNNRegressor = KNeighborsRegressor
-GaussianNaiveBayes = GaussianNB
+from edupredict.models.base import BaseModel
+from edupredict.models.linear_regression import LinearRegression
+from edupredict.models.knn import KNNClassifier
+from edupredict.models.decision_tree import DecisionTreeClassifier
 
 REGRESSION_MODELS: Dict[str, Dict[str, Any]] = {
     "Linear Regression": {
         "class": LinearRegression,
-        "default_params": {"fit_intercept": True},
-        "description": "Ordinary Least Squares Linear Regression",
-    },
-    "Ridge Regression": {
-        "class": Ridge,
-        "default_params": {"alpha": 1.0},
-        "description": "Linear least squares with L2 regularization",
-    },
-    "KNN Regressor": {
-        "class": KNeighborsRegressor,
-        "default_params": {"n_neighbors": 5, "weights": "uniform"},
-        "description": "k-Nearest Neighbors Regressor",
-    },
-    "Decision Tree Regressor": {
-        "class": DecisionTreeRegressor,
-        "default_params": {"max_depth": 5, "min_samples_split": 2, "random_state": 42},
-        "description": "Decision Tree Regressor",
+        "default_params": {"solver": "gradient_descent"},
+        "description": "Custom Linear Regression (Normal Equation & Gradient Descent)",
     },
 }
 
 CLASSIFICATION_MODELS: Dict[str, Dict[str, Any]] = {
-    "Logistic Regression": {
-        "class": LogisticRegression,
-        "default_params": {"max_iter": 1000, "random_state": 42},
-        "description": "Binary and Multiclass Logistic Regression",
-    },
     "KNN Classifier": {
-        "class": KNeighborsClassifier,
+        "class": KNNClassifier,
         "default_params": {"n_neighbors": 5, "weights": "uniform"},
-        "description": "k-Nearest Neighbors Classifier",
+        "description": "Custom K-Nearest Neighbors Classifier",
     },
     "Decision Tree Classifier": {
         "class": DecisionTreeClassifier,
-        "default_params": {"max_depth": 5, "min_samples_split": 2, "random_state": 42},
-        "description": "Decision Tree Classifier",
-    },
-    "Gaussian Naive Bayes": {
-        "class": GaussianNB,
-        "default_params": {"var_smoothing": 1e-9},
-        "description": "Gaussian Naive Bayes Classifier",
+        "default_params": {"max_depth": 5, "min_samples_split": 2, "random_seed": 42},
+        "description": "Custom CART Decision Tree Classifier",
     },
 }
 
@@ -73,14 +44,14 @@ def list_models(task: str = "regression") -> List[str]:
         raise ValueError(f"Unknown task '{task}'. Choose 'regression' or 'classification'")
 
 
-def get_model(name: str, task: str = "regression", **kwargs) -> Any:
+def get_model(name: str, task: str = "regression", **kwargs) -> BaseModel:
     """
-    Instantiate and return a configured Scikit-learn estimator.
+    Instantiate and return a configured custom EduPredict estimator.
 
     Parameters
     ----------
     name : str
-        Model name or key (e.g. 'Linear Regression', 'Logistic Regression').
+        Model name or key (e.g. 'Linear Regression', 'KNN Classifier', 'Decision Tree Classifier').
     task : str
         'regression' or 'classification'.
     kwargs : Any

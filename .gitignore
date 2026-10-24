@@ -1,14 +1,34 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Caches and test coverage
 .pytest_cache/
 .coverage
 htmlcov/
+matplotlib_cache/
+
+# Environments and dependencies
 .env
-.venv
+.venv/
 env/
 venv/
+ENV/
+
+# Operating system files
 .DS_Store
+Thumbs.db
+
+# IDE and editor configurations
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Streamlit local runtime & secrets
 .streamlit/secrets.toml
+
+# Temporary and local artifacts
+*.tmp
+artifacts/temp_*.png

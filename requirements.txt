@@ -1,7 +1,8 @@
-# EduPredict: Classical ML Framework
-# Core preprocessing, linear algebra, loss functions, and evaluation metrics implemented from scratch.
-# Scikit-learn utilized for model estimators; Streamlit & Matplotlib for presentation.
+# EduPredict: Classical Machine Learning from Scratch
+# Core estimators (Linear Regression, KNN Classifier, Decision Tree Classifier),
+# linear algebra, loss functions, metrics, and preprocessing are implemented 100% from scratch.
+# Pure Python standard library is used for core algorithms (zero ML/numerical libraries).
+# Third-party dependencies are strictly restricted to presentation and visualization:
 
-scikit-learn>=1.2.0
 matplotlib>=3.7.0
 streamlit>=1.30.0

@@ -1,9 +1,9 @@
 """
 EduPredict: Interactive Web Dashboard (Streamlit).
 
-A clean, production-ready Classical Machine Learning interface powered by
-Scikit-learn estimators and scratch-implemented linear algebra, statistics,
-leakage-free preprocessing, loss functions, and evaluation metrics.
+An educational Classical Machine Learning interface powered by custom estimators
+(Linear Regression, KNN Classifier, Decision Tree Classifier) built entirely from scratch
+with zero third-party ML dependencies (no Scikit-learn, no NumPy, no Pandas).
 """
 
 import os
@@ -24,25 +24,36 @@ from edupredict.data.schema import infer_schema, DatasetSchema
 from edupredict.pipeline.pipeline import MLPipeline, ExperimentSuite
 from edupredict.math.stats import correlation_matrix
 from edupredict.visualization.plots import (
+    plot_loss_curve,
     plot_actual_vs_predicted,
     plot_confusion_matrix_heatmap,
     plot_roc_curves,
     plot_correlation_heatmap,
     plot_feature_distributions,
     plot_classification_comparison,
+    plot_model_complexity_curves,
 )
 from edupredict.metrics.classification import roc_curve
+from edupredict.analysis.overfitting import (
+    analyze_knn_complexity,
+    analyze_decision_tree_complexity,
+    analyze_linear_regression_regularization,
+)
+from edupredict.data.uci_metadata import (
+    UCI_FEATURE_CONFIG,
+    get_uci_feature_config,
+    get_column_display_name,
+    format_preview_records,
+)
 
 st.set_page_config(
     page_title="EduPredict | Classical ML Framework",
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# ---------------------------------------------------------
 # Custom Styling
-# ---------------------------------------------------------
 st.markdown("""
 <style>
     .main-title {
@@ -69,63 +80,140 @@ st.markdown("""
 
 @st.cache_resource(show_spinner="Loading dataset...")
 def get_default_dataset() -> Dataset:
-    """Load or generate the benchmark student academic performance dataset."""
-    csv_path = os.path.join(PROJECT_ROOT, "data", "student_performance.csv")
-    if not os.path.exists(csv_path):
-        os.makedirs(os.path.join(PROJECT_ROOT, "data"), exist_ok=True)
-        ds = generate_student_data(n_samples=600, random_seed=42, missing_rate=0.02)
-        save_csv(csv_path, ds.headers, ds.rows)
+    """Load the UCI Student Performance Mathematics dataset as primary, with synthetic fallback."""
+    uci_path = os.path.join(PROJECT_ROOT, "data", "student-mat.csv")
+    synth_path = os.path.join(PROJECT_ROOT, "data", "student_performance.csv")
+
+    if os.path.exists(uci_path):
+        headers, rows = load_csv(uci_path)
+        ds = Dataset(headers=headers, data=rows)
+        # Augment with academic_risk target if G3 is present: Risk = 1 if G3 < 10 else 0
+        if "G3" in ds.headers and "academic_risk" not in ds.headers:
+            g3_idx = ds.header_to_idx["G3"]
+            new_headers = list(ds.headers) + ["academic_risk"]
+            new_rows = []
+            for row in ds.rows:
+                g3_val = row[g3_idx]
+                risk = 1 if (g3_val is not None and float(g3_val) < 10.0) else 0
+                new_rows.append(list(row) + [risk])
+            return Dataset(headers=new_headers, data=new_rows)
         return ds
-    headers, rows = load_csv(csv_path)
-    return Dataset(headers=headers, data=rows)
+
+    if os.path.exists(synth_path):
+        headers, rows = load_csv(synth_path)
+        return Dataset(headers=headers, data=rows)
+
+    os.makedirs(os.path.join(PROJECT_ROOT, "data"), exist_ok=True)
+    ds = generate_student_data(n_samples=600, random_seed=42, missing_rate=0.02)
+    save_csv(synth_path, ds.headers, ds.rows)
+    return ds
 
 
-# Sidebar
+# Load Dataset
+dataset = get_default_dataset()
+is_uci = "G3" in dataset.headers
+
+# Sidebar Navigation
 with st.sidebar:
     st.markdown("## 🎓 EduPredict")
-    st.caption("Classical Machine Learning Framework")
+    st.caption("Classical ML Implemented From Scratch")
     st.markdown("---")
 
     nav_choice = st.radio(
         "Navigation",
         [
             "📊 Dataset Overview & Validation",
-            "📈 Regression Studio",
-            "🎯 Classification Studio",
+            "📈 Regression Studio (Linear Regression)",
+            "🎯 Classification Studio (KNN & Decision Tree)",
+            "🔬 Overfitting & Underfitting Explorer",
             "📋 Empirical Benchmark Suite",
             "📖 Architecture & Methods",
         ],
     )
 
     st.markdown("---")
-    st.markdown("**Architecture Highlights:**")
-    st.markdown("- **ML Estimators:** Scikit-learn")
-    st.markdown("- **Linear Algebra:** Custom Scratch Engine")
-    st.markdown("- **Statistics:** Custom Scratch Engine")
-    st.markdown("- **Preprocessing:** Leak-Free Custom Fit")
-    st.markdown("- **Losses & Gradients:** Analytical Scratch")
-    st.markdown("- **Evaluation Metrics:** Scratch Formulations")
-    st.markdown("- **Data Handling:** Standard Python (No Pandas)")
+    st.markdown("**Dataset Provenance:**")
+    if is_uci:
+        st.info("📁 Primary Dataset: UCI Student Performance (Mathematics, 395 records, 33 attributes)")
+    else:
+        st.info("📁 Auxiliary Dataset: Synthetic Student Performance")
+
+    st.markdown("**Implementation Policy:**")
+    st.markdown("- **Core ML Models:** 100% Custom Scratch")
+    st.markdown("- **Linear Algebra:** Custom Matrix Engine")
+    st.markdown("- **Statistics:** Custom Scratch Stats")
+    st.markdown("- **Preprocessing:** Leak-Free Transformers")
+    st.markdown("- **Metrics:** Scratch Formulations")
+    st.markdown("- **External ML Libs:** ZERO (No NumPy, No Pandas, No Sklearn)")
 
 
-# Load Dataset
-dataset = get_default_dataset()
-
-
-# Helper to render dynamic prediction widgets based on schema
 def render_dynamic_inputs(schema: DatasetSchema, ds: Dataset, key_prefix: str) -> Dict[str, Any]:
-    """Generate form inputs dynamically based on schema feature types and data ranges."""
+    """Generate form inputs with precise display labels, coded descriptions, and controls for UCI features."""
     input_values: Dict[str, Any] = {}
-
-    st.markdown("##### Feature Values")
+    st.markdown("##### Student Profile Attributes")
     col_a, col_b = st.columns(2)
 
-    half = (len(schema.feature_names) + 1) // 2
-    cols_left = schema.feature_names[:half]
-    cols_right = schema.feature_names[half:]
+    # Strictly exclude target and data-leakage columns from student input forms
+    forbidden_features = {"G1", "G2", "G3", "academic_risk", "final_exam_score", "student_id"}
+    valid_feature_names = [f for f in schema.feature_names if f not in forbidden_features]
+
+    half = (len(valid_feature_names) + 1) // 2
+    cols_left = valid_feature_names[:half]
+    cols_right = valid_feature_names[half:]
 
     def render_col_field(feature_name: str, target_container):
         with target_container:
+            # 1. UCI Configured Feature: Exact display label, control type, and formatted descriptions
+            if feature_name in UCI_FEATURE_CONFIG:
+                cfg = UCI_FEATURE_CONFIG[feature_name]
+                label_text = f"{cfg['label']}:"
+                help_text = cfg.get("help")
+                control_type = cfg.get("control")
+
+                if control_type == "select":
+                    options = cfg["options"]
+                    default_val = cfg.get("default", options[0])
+                    idx = options.index(default_val) if default_val in options else 0
+                    format_fn = cfg.get("format_func", str)
+                    input_values[feature_name] = st.selectbox(
+                        label_text,
+                        options=options,
+                        index=idx,
+                        format_func=format_fn,
+                        help=help_text,
+                        key=f"{key_prefix}_{feature_name}",
+                    )
+                elif control_type == "slider":
+                    min_val = int(cfg.get("min", 15))
+                    max_val = int(cfg.get("max", 22))
+                    default_val = int(cfg.get("default", min_val))
+                    step_val = int(cfg.get("step", 1))
+                    input_values[feature_name] = int(st.slider(
+                        label_text,
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=default_val,
+                        step=step_val,
+                        help=help_text,
+                        key=f"{key_prefix}_{feature_name}",
+                    ))
+                elif control_type == "number":
+                    min_val = int(cfg.get("min", 0))
+                    max_val = int(cfg.get("max", 150))
+                    default_val = int(cfg.get("default", 0))
+                    step_val = int(cfg.get("step", 1))
+                    input_values[feature_name] = int(st.number_input(
+                        label_text,
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=default_val,
+                        step=step_val,
+                        help=help_text,
+                        key=f"{key_prefix}_{feature_name}",
+                    ))
+                return
+
+            # 2. Generic Fallback for non-UCI / synthetic dataset features
             col_vals = [row[ds.header_to_idx[feature_name]] for row in ds.rows if row[ds.header_to_idx[feature_name]] is not None]
             if feature_name in schema.numerical_features:
                 num_vals = [float(v) for v in col_vals if isinstance(v, (int, float)) or str(v).replace('.', '', 1).isdigit()]
@@ -172,376 +260,364 @@ def render_dynamic_inputs(schema: DatasetSchema, ds: Dataset, key_prefix: str) -
 # ---------------------------------------------------------
 if nav_choice == "📊 Dataset Overview & Validation":
     st.markdown("<div class='main-title'>📊 Dataset Overview & Validation</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Inspect tabular data structure, feature distributions, missing value counts, and integrity checks.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>UCI Student Performance Mathematics Dataset structure, integrity checks, and descriptive statistics.</div>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Records", dataset.shape[0])
-    c2.metric("Total Columns", dataset.shape[1])
+    c1.metric("Total Student Records", dataset.shape[0])
+    c2.metric("Total Attributes", dataset.shape[1])
     missing_dict = dataset.count_missing()
     total_missing = sum(missing_dict.values())
-    c3.metric("Total Missing Values", total_missing)
+    c3.metric("Missing Values", total_missing)
 
     st.markdown("### 📋 Tabular Records Preview (First 8 Rows)")
     table_headers = dataset.headers
     table_rows = dataset.rows[:8]
-    st.table([{h: row[i] for i, h in enumerate(table_headers)} for row in table_rows])
+    st.table(format_preview_records(table_headers, table_rows))
 
-    st.markdown("### 🔍 Schema Validation & Missing Values by Feature")
+    st.markdown("### 🔍 Schema Validation")
     validation_report = validate_dataset(dataset.headers, dataset.rows)
-    
+
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.markdown("**Column Missing Counts:**")
-        missing_data = [{"Column": col, "Missing Count": count, "Missing Rate": f"{(count / len(dataset) * 100):.2f}%"} for col, count in missing_dict.items()]
-        st.dataframe(missing_data, use_container_width=True)
+        st.markdown("**Attribute Breakdown:**")
+        st.dataframe(
+            [{"Column": get_column_display_name(col), "Missing Count": count} for col, count in missing_dict.items() if count > 0]
+            or [{"Status": "Zero Missing Values Detected"}],
+            use_container_width=True,
+        )
 
     with col2:
         st.markdown("**Dataset Integrity Status:**")
         if validation_report.is_valid:
             st.success("✅ Dataset schema is valid: row lengths match headers, no malformed structural errors.")
         else:
-            st.error(f"❌ Validation errors detected: {validation_report.errors}")
-        st.caption("Note: Missing values (~2% rate) are intentionally present to validate our leak-free SimpleImputer.")
+            st.error(f"❌ Validation errors: {validation_report.errors}")
+        st.caption("Primary outcome: G3 (Final mathematics grade, scale 0–20). Academic risk defined as G3 < 10.")
 
     st.markdown("---")
-    st.markdown("### 📈 Numerical Feature Distributions & Correlation Matrix")
+    st.markdown("### 📈 Feature Distributions & Correlation Matrix")
     c_p1, c_p2 = st.columns(2)
     artifacts_dir = os.path.join(PROJECT_ROOT, "artifacts")
-    
+
     with c_p1:
         p_dist = os.path.join(artifacts_dir, "feature_distributions.png")
         if os.path.exists(p_dist):
-            st.image(p_dist, caption="Feature Distributions (Computed and plotted from scratch data)")
+            st.image(p_dist, caption="Feature Distributions (Computed from scratch)")
     with c_p2:
         p_corr = os.path.join(artifacts_dir, "correlation_heatmap.png")
         if os.path.exists(p_corr):
-            st.image(p_corr, caption="Pearson Correlation Heatmap (Computed using scratch correlation matrix)")
+            st.image(p_corr, caption="Pearson Correlation Heatmap (Computed with scratch matrix engine)")
 
 
 # ---------------------------------------------------------
-# TAB 2: Regression Studio
+# TAB 2: Regression Studio (Linear Regression)
 # ---------------------------------------------------------
-elif nav_choice == "📈 Regression Studio":
-    st.markdown("<div class='main-title'>📈 Regression Studio</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Train, tune, and evaluate Scikit-learn continuous estimators using custom preprocessing and evaluation metrics.</div>", unsafe_allow_html=True)
+elif nav_choice == "📈 Regression Studio (Linear Regression)":
+    st.markdown("<div class='main-title'>📈 Regression Studio: Custom Linear Regression</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Predict final mathematics grade (G3) using custom Linear Regression with Normal Equation and Gradient Descent.</div>", unsafe_allow_html=True)
+
+    target_col = "G3" if is_uci else "final_exam_score"
+    ignored_cols = ["G1", "G2", "academic_risk"] if is_uci else ["student_id", "academic_risk"]
 
     schema_reg = infer_schema(
         dataset.headers, dataset.rows,
-        target_column="final_exam_score",
+        target_column=target_col,
         task_type="regression",
-        ignored_columns=["student_id", "academic_risk"],
+        ignored_columns=ignored_cols,
     )
 
     col_config, col_results = st.columns([1, 1], gap="large")
 
     with col_config:
-        st.subheader("⚙️ Model Configuration")
-        model_name = st.selectbox(
-            "Regression Algorithm:",
-            ["Linear Regression", "Ridge Regression", "KNN Regressor", "Decision Tree Regressor"],
-            key="reg_model_select"
-        )
+        st.subheader("⚙️ Solver & Hyperparameters")
+        solver = st.radio("Optimization Solver:", ["gradient_descent", "normal_equation"], horizontal=True)
 
-        model_params: Dict[str, Any] = {}
-        if model_name == "Linear Regression":
-            fit_intercept = st.checkbox("Fit Intercept (Bias)", value=True)
-            model_params["fit_intercept"] = fit_intercept
-        elif model_name == "Ridge Regression":
-            alpha = st.slider("L2 Regularization Strength (alpha):", 0.01, 20.0, 1.0, 0.1)
-            model_params["alpha"] = alpha
-        elif model_name == "KNN Regressor":
-            k = st.slider("Number of Neighbors (k):", 1, 25, 5, 1)
-            weights = st.selectbox("Weighting:", ["uniform", "distance"])
-            model_params["n_neighbors"] = k
-            model_params["weights"] = weights
-        elif model_name == "Decision Tree Regressor":
-            max_depth = st.slider("Max Tree Depth:", 1, 15, 5, 1)
-            min_samples_split = st.slider("Min Samples Split:", 2, 20, 2, 1)
-            model_params["max_depth"] = max_depth
-            model_params["min_samples_split"] = min_samples_split
+        model_params: Dict[str, Any] = {"solver": solver}
+        fit_intercept = st.checkbox("Fit Intercept (Bias)", value=True)
+        model_params["fit_intercept"] = fit_intercept
 
-        scaler_type = st.selectbox("Feature Scaler:", ["standard", "minmax"], index=0, key="reg_scaler")
-        test_size = st.slider("Test Set Size:", 0.1, 0.4, 0.2, 0.05, key="reg_test_size")
+        if solver == "gradient_descent":
+            lr = st.slider("Learning Rate (alpha):", 0.001, 0.1, 0.01, 0.005)
+            epochs = st.slider("Maximum Epochs:", 100, 1000, 300, 50)
+            momentum = st.slider("Polyak Momentum:", 0.0, 0.9, 0.0, 0.1)
+            model_params["learning_rate"] = lr
+            model_params["max_epochs"] = epochs
+            model_params["momentum"] = momentum
+            model_params["early_stopping"] = True
+            model_params["patience"] = 10
 
-        train_btn = st.button("🚀 Train & Evaluate Regression Model", type="primary", use_container_width=True)
+        l2_reg = st.slider("L2 Ridge Penalty (lambda):", 0.0, 50.0, 0.0, 1.0)
+        model_params["l2_reg"] = l2_reg
+
+        scaler_type = st.selectbox("Feature Scaler:", ["standard", "minmax"], index=0)
+        test_size = st.slider("Holdout Test Size:", 0.1, 0.4, 0.2, 0.05)
+
+        train_btn = st.button("🚀 Train Custom Linear Regression", type="primary")
 
     with col_results:
-        st.subheader("📊 Live Evaluation Metrics")
-
-        # Train pipeline if button pressed or if not yet in state
-        if train_btn or "reg_pipeline" not in st.session_state or st.session_state.get("reg_model_trained") != model_name:
-            raw_X, y = dataset.split_features_target(
-                feature_cols=schema_reg.feature_names,
-                target_col="final_exam_score"
-            )
+        st.subheader("📊 Model Performance & Artifacts")
+        if train_btn:
+            raw_X, y = dataset.split_features_target(schema_reg.feature_names, target_col)
             y = [float(v) for v in y]
 
-            pipe = MLPipeline(
-                schema=schema_reg,
-                model_name=model_name,
-                model_params=model_params,
-                scaler_type=scaler_type,
-                random_seed=42,
-            )
-            pipe.fit(raw_X, y, test_size=test_size)
-            st.session_state["reg_pipeline"] = pipe
-            st.session_state["reg_model_trained"] = model_name
+            with st.spinner("Training Custom Linear Regression..."):
+                pipe = MLPipeline(
+                    schema=schema_reg,
+                    model_name="Linear Regression",
+                    model_params=model_params,
+                    scaler_type=scaler_type,
+                    random_seed=42,
+                )
+                pipe.fit(raw_X, y, test_size=test_size)
+                st.session_state["reg_pipe"] = pipe
 
-        active_pipe: MLPipeline = st.session_state["reg_pipeline"]
-        metrics = active_pipe.test_metrics
+        if "reg_pipe" in st.session_state:
+            pipe = st.session_state["reg_pipe"]
+            metrics = pipe.test_metrics
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("R² Score", f"{metrics.get('r2', 0.0):.4f}")
+            m2.metric("RMSE", f"{metrics.get('rmse', 0.0):.4f}")
+            m3.metric("MAE", f"{metrics.get('mae', 0.0):.4f}")
+            m4.metric("Train Time", f"{pipe.training_time_ms:.1f} ms")
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Test R² Score", f"{metrics['r2']:.4f}")
-        c2.metric("Test MSE", f"{metrics['mse']:.4f}")
-        c3.metric("Test RMSE", f"{metrics['rmse']:.4f}")
-        c4.metric("Test MAE", f"{metrics['mae']:.4f}")
+            # Training Loss Curve if GD
+            if hasattr(pipe.estimator, "loss_history_") and len(pipe.estimator.loss_history_) > 1:
+                p_loss = os.path.join(PROJECT_ROOT, "artifacts", "temp_loss.png")
+                plot_loss_curve(pipe.estimator.loss_history_, title="Loss Convergence Curve", save_path=p_loss)
+                if os.path.exists(p_loss):
+                    st.image(p_loss, caption="Gradient Descent Loss Progression")
 
-        st.caption(f"⏱️ Training Time: **{active_pipe.training_time_ms:.2f} ms** | Test Inference: **{active_pipe.inference_time_ms:.2f} ms**")
-
-        # Plot Actual vs Predicted
-        temp_fig_path = os.path.join(PROJECT_ROOT, "artifacts", "temp_reg_plot.png")
-        plot_actual_vs_predicted(
-            active_pipe.y_test,
-            active_pipe.y_test_pred,
-            title=f"Actual vs. Predicted ({model_name} | R² = {metrics['r2']:.4f})",
-            save_path=temp_fig_path
-        )
-        if os.path.exists(temp_fig_path):
-            st.image(temp_fig_path, use_container_width=True)
+            p_act_vs_pred = os.path.join(PROJECT_ROOT, "artifacts", "temp_reg_plot.png")
+            plot_actual_vs_predicted(pipe.y_test, pipe.y_test_pred, save_path=p_act_vs_pred)
+            if os.path.exists(p_act_vs_pred):
+                st.image(p_act_vs_pred, caption="Actual vs. Predicted Final Grade")
 
     st.markdown("---")
-    st.subheader("🔮 Single Student Continuous Score Prediction")
-    st.markdown("Adjust student indicators below to predict their final score through the fitted pipeline:")
-
-    reg_inputs = render_dynamic_inputs(schema_reg, dataset, key_prefix="reg")
-    if reg_inputs:
-        pred_score = active_pipe.predict_single(reg_inputs)
-        bounded_score = max(0.0, min(100.0, float(pred_score)))
-
-        st.markdown(
-            f"<div class='metric-badge'>"
-            f"<h4>Predicted Final Exam Score: <span style='color: #1e3799;'>{bounded_score:.2f} / 100</span></h4>"
-            f"Processed through fitted SimpleImputer, OneHotEncoder, StandardScaler, and {model_name}."
-            f"</div>",
-            unsafe_allow_html=True
-        )
+    st.subheader("🧑‍🎓 Single Student Grade Inference")
+    if "reg_pipe" in st.session_state:
+        pipe = st.session_state["reg_pipe"]
+        with st.form("reg_infer_form"):
+            user_inputs = render_dynamic_inputs(schema_reg, dataset, key_prefix="reg_single")
+            predict_btn = st.form_submit_button("Predict Final Math Grade")
+            if predict_btn:
+                pred_grade = pipe.predict_single(user_inputs)
+                st.success(f"🎯 **Predicted Final Math Grade (G3): {pred_grade:.2f} / 20**")
+                if pred_grade < 10.0:
+                    st.warning("⚠️ Warning: Student is predicted to fall below the academic passing threshold (10.0).")
+                else:
+                    st.info("✅ Student is projected to successfully pass the mathematics course.")
+    else:
+        st.info("Train the model above to enable interactive single-student prediction.")
 
 
 # ---------------------------------------------------------
-# TAB 3: Classification Studio
+# TAB 3: Classification Studio (KNN & Decision Tree)
 # ---------------------------------------------------------
-elif nav_choice == "🎯 Classification Studio":
-    st.markdown("<div class='main-title'>🎯 Classification Studio</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Train and evaluate Scikit-learn classifiers for academic risk detection using scratch preprocessing, splitting, and metrics.</div>", unsafe_allow_html=True)
+elif nav_choice == "🎯 Classification Studio (KNN & Decision Tree)":
+    st.markdown("<div class='main-title'>🎯 Classification Studio: Academic Risk Detection</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Predict academic risk (G3 < 10) using custom K-Nearest Neighbors and Decision Tree classifiers.</div>", unsafe_allow_html=True)
+
+    target_col = "academic_risk"
+    ignored_cols = ["G1", "G2", "G3"] if is_uci else ["student_id", "final_exam_score"]
 
     schema_clf = infer_schema(
         dataset.headers, dataset.rows,
-        target_column="academic_risk",
+        target_column=target_col,
         task_type="binary_classification",
-        ignored_columns=["student_id", "final_exam_score"],
+        ignored_columns=ignored_cols,
     )
 
     col_config, col_results = st.columns([1, 1], gap="large")
 
     with col_config:
         st.subheader("⚙️ Classifier Configuration")
-        model_name = st.selectbox(
-            "Classification Algorithm:",
-            ["Logistic Regression", "KNN Classifier", "Decision Tree Classifier", "Gaussian Naive Bayes"],
-            key="clf_model_select"
+        model_name = st.radio(
+            "Select Custom Classifier:",
+            ["KNN Classifier", "Decision Tree Classifier"],
+            horizontal=True,
         )
 
         model_params: Dict[str, Any] = {}
-        if model_name == "Logistic Regression":
-            max_iter = st.slider("Max Iterations:", 100, 2000, 1000, 100)
-            c_val = st.slider("Inverse Regularization (C):", 0.01, 10.0, 1.0, 0.1)
-            model_params["max_iter"] = max_iter
-            model_params["C"] = c_val
-        elif model_name == "KNN Classifier":
-            k = st.slider("Number of Neighbors (k):", 1, 25, 5, 1, key="clf_k")
-            weights = st.selectbox("Weighting:", ["uniform", "distance"], key="clf_weights")
-            model_params["n_neighbors"] = k
-            model_params["weights"] = weights
-        elif model_name == "Decision Tree Classifier":
-            criterion = st.selectbox("Split Criterion:", ["gini", "entropy"])
-            max_depth = st.slider("Max Tree Depth:", 1, 15, 5, 1, key="clf_depth")
-            min_samples_split = st.slider("Min Samples Split:", 2, 20, 2, 1, key="clf_split")
-            model_params["criterion"] = criterion
+        if model_name == "KNN Classifier":
+            k_val = st.slider("Neighborhood Size (k):", 1, 31, 5, 2)
+            metric_val = st.selectbox("Distance Metric:", ["euclidean", "manhattan"])
+            weights_val = st.selectbox("Neighbor Weighting:", ["uniform", "distance"])
+            model_params["n_neighbors"] = k_val
+            model_params["metric"] = metric_val
+            model_params["weights"] = weights_val
+        else:
+            max_depth = st.slider("Maximum Depth:", 1, 15, 4, 1)
+            min_split = st.slider("Minimum Samples Split:", 2, 20, 2, 1)
             model_params["max_depth"] = max_depth
-            model_params["min_samples_split"] = min_samples_split
-        elif model_name == "Gaussian Naive Bayes":
-            var_smoothing = st.select_slider("Variance Smoothing:", options=[1e-11, 1e-9, 1e-7, 1e-5], value=1e-9)
-            model_params["var_smoothing"] = var_smoothing
+            model_params["min_samples_split"] = min_split
+            model_params["random_seed"] = 42
 
-        scaler_type = st.selectbox("Feature Scaler:", ["standard", "minmax"], index=0, key="clf_scaler")
-        test_size = st.slider("Test Set Size:", 0.1, 0.4, 0.2, 0.05, key="clf_test_size")
-
-        train_btn = st.button("🚀 Train & Evaluate Classifier", type="primary", use_container_width=True)
+        test_size = st.slider("Holdout Test Size:", 0.1, 0.4, 0.2, 0.05, key="clf_test_size")
+        train_clf_btn = st.button("🚀 Train Custom Classifier", type="primary")
 
     with col_results:
-        st.subheader("📊 Live Evaluation Metrics")
-
-        # Train pipeline if button pressed or if not yet in state
-        if train_btn or "clf_pipeline" not in st.session_state or st.session_state.get("clf_model_trained") != model_name:
-            raw_X, y = dataset.split_features_target(
-                feature_cols=schema_clf.feature_names,
-                target_col="academic_risk"
-            )
+        st.subheader("📊 Classification Metrics")
+        if train_clf_btn:
+            raw_X, y = dataset.split_features_target(schema_clf.feature_names, target_col)
             y = [int(v) for v in y]
 
-            pipe = MLPipeline(
-                schema=schema_clf,
-                model_name=model_name,
-                model_params=model_params,
-                scaler_type=scaler_type,
-                random_seed=42,
-            )
-            pipe.fit(raw_X, y, test_size=test_size)
-            st.session_state["clf_pipeline"] = pipe
-            st.session_state["clf_model_trained"] = model_name
+            with st.spinner(f"Training {model_name}..."):
+                pipe = MLPipeline(
+                    schema=schema_clf,
+                    model_name=model_name,
+                    model_params=model_params,
+                    random_seed=42,
+                )
+                pipe.fit(raw_X, y, test_size=test_size)
+                st.session_state["clf_pipe"] = pipe
 
-        active_pipe: MLPipeline = st.session_state["clf_pipeline"]
-        metrics = active_pipe.test_metrics
+        if "clf_pipe" in st.session_state:
+            pipe = st.session_state["clf_pipe"]
+            metrics = pipe.test_metrics
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Accuracy", f"{metrics.get('accuracy', 0.0) * 100:.1f}%")
+            m2.metric("Precision", f"{metrics.get('precision', 0.0):.4f}")
+            m3.metric("Recall", f"{metrics.get('recall', 0.0):.4f}")
+            m4.metric("F1 Score", f"{metrics.get('f1', 0.0):.4f}")
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Accuracy", f"{metrics['accuracy']*100:.2f}%")
-        c2.metric("Precision", f"{metrics['precision']:.4f}")
-        c3.metric("Recall", f"{metrics['recall']:.4f}")
-        c4.metric("F1-Score", f"{metrics['f1']:.4f}")
-
-        if metrics.get("roc_auc") is not None:
-            st.metric("ROC-AUC Score", f"{metrics['roc_auc']:.4f}")
-
-        st.caption(f"⏱️ Training Time: **{active_pipe.training_time_ms:.2f} ms** | Test Inference: **{active_pipe.inference_time_ms:.2f} ms**")
-
-        # Plot Confusion Matrix
-        temp_cm_path = os.path.join(PROJECT_ROOT, "artifacts", "temp_cm_plot.png")
-        plot_confusion_matrix_heatmap(
-            metrics["confusion_matrix"],
-            labels=["Normal (0)", "At-Risk (1)"],
-            title=f"Confusion Matrix ({model_name})",
-            save_path=temp_cm_path
-        )
-        if os.path.exists(temp_cm_path):
-            st.image(temp_cm_path, use_container_width=True)
+            # Confusion Matrix Plot
+            if "confusion_matrix" in metrics:
+                p_cm = os.path.join(PROJECT_ROOT, "artifacts", "temp_cm_plot.png")
+                plot_confusion_matrix_heatmap(
+                    metrics["confusion_matrix"],
+                    labels=["Normal (0)", "At-Risk (1)"],
+                    title=f"Confusion Matrix: {pipe.model_name}",
+                    save_path=p_cm,
+                )
+                if os.path.exists(p_cm):
+                    st.image(p_cm, caption="Empirical Confusion Matrix on Holdout Test Data")
 
     st.markdown("---")
-    st.subheader("🔮 Single Student Academic Risk Assessment")
-    st.markdown("Adjust student indicators below to assess academic risk probability:")
+    st.subheader("🧑‍🎓 Single Student Risk Assessment")
+    if "clf_pipe" in st.session_state:
+        pipe = st.session_state["clf_pipe"]
+        with st.form("clf_infer_form"):
+            user_inputs = render_dynamic_inputs(schema_clf, dataset, key_prefix="clf_single")
+            predict_clf_btn = st.form_submit_button("Assess Student Academic Risk")
+            if predict_clf_btn:
+                pred_risk = pipe.predict_single(user_inputs)
+                proba_dict = pipe.predict_single_proba(user_inputs)
 
-    clf_inputs = render_dynamic_inputs(schema_clf, dataset, key_prefix="clf")
-    if clf_inputs:
-        pred_label = active_pipe.predict_single(clf_inputs)
-        pred_proba = active_pipe.predict_single_proba(clf_inputs)
+                if int(pred_risk) == 1:
+                    st.error("🚨 **High Academic Risk Detected**: Student is likely to fail final mathematics (G3 < 10).")
+                else:
+                    st.success("✅ **Normal Academic Trajectory**: Student is on track to pass final mathematics.")
 
-        risk_str = "🚨 At-Risk (Needs Academic Support)" if pred_label == 1 else "✅ On-Track (Good Academic Standing)"
-        risk_color = "#eb4d4b" if pred_label == 1 else "#20bf6b"
-
-        prob_msg = ""
-        if pred_proba is not None:
-            risk_p = pred_proba.get(1, pred_proba.get("1", 0.0))
-            prob_msg = f"<p>Estimated Risk Probability: <b>{risk_p * 100:.1f}%</b></p>"
-
-        st.markdown(
-            f"<div class='metric-badge' style='border-left-color: {risk_color};'>"
-            f"<h4>Risk Assessment: <span style='color: {risk_color};'>{risk_str}</span></h4>"
-            f"{prob_msg}"
-            f"</div>",
-            unsafe_allow_html=True
-        )
+                if proba_dict:
+                    st.write("**Model Class Probabilities:**")
+                    st.json(proba_dict)
+    else:
+        st.info("Train the classifier above to enable interactive single-student risk assessment.")
 
 
 # ---------------------------------------------------------
-# TAB 4: Empirical Benchmark Suite
+# TAB 4: Overfitting & Underfitting Explorer
+# ---------------------------------------------------------
+elif nav_choice == "🔬 Overfitting & Underfitting Explorer":
+    st.markdown("<div class='main-title'>🔬 Overfitting & Underfitting Explorer</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Empirical analysis of model complexity curves demonstrating the Bias-Variance tradeoff on the UCI Mathematics dataset.</div>", unsafe_allow_html=True)
+
+    artifacts_dir = os.path.join(PROJECT_ROOT, "artifacts")
+    sub_tab1, sub_tab2, sub_tab3 = st.tabs([
+        "KNN: Neighborhood Size (k)",
+        "Decision Tree: Max Depth",
+        "Linear Regression: L2 Regularization",
+    ])
+
+    with sub_tab1:
+        st.markdown("### 🔍 K-Nearest Neighbors: Impact of k")
+        st.markdown("""
+        - **k = 1 (Overfitting / High Variance):** Training accuracy reaches 100%, but validation accuracy is suboptimal because the model memorizes idiosyncratic training noise.
+        - **Optimal k (Balanced Tradeoff):** Neighborhood averaging filters out noise, reaching peak validation performance.
+        - **Large k (Underfitting / High Bias):** Decision boundary becomes overly smooth, predicting global class frequencies and eroding predictive power.
+        """)
+        p_knn = os.path.join(artifacts_dir, "knn_overfitting_curve.png")
+        if os.path.exists(p_knn):
+            st.image(p_knn, use_container_width=True)
+
+    with sub_tab2:
+        st.markdown("### 🌲 Decision Tree: Impact of Maximum Depth")
+        st.markdown("""
+        - **Depth = 1 (Underfitting / High Bias):** A single decision stump cannot capture complex interactions among student habits, school support, and past failures.
+        - **Intermediate Depth (Optimal):** Captures high-information splits without overfitting individual samples.
+        - **Deep Tree (Overfitting / High Variance):** The tree creates tiny leaves matching individual student outliers, causing test performance to degrade.
+        """)
+        p_dt = os.path.join(artifacts_dir, "tree_overfitting_curve.png")
+        if os.path.exists(p_dt):
+            st.image(p_dt, use_container_width=True)
+
+    with sub_tab3:
+        st.markdown("### 📈 Linear Regression: Impact of L2 Penalty (Ridge Regularization)")
+        st.markdown("""
+        - **lambda ≈ 0 (Unregularized OLS):** Susceptible to multicollinearity and high variance when many categorical features are one-hot encoded.
+        - **Optimal lambda:** Shrinks non-informative regression coefficients towards zero, improving generalization stability.
+        - **Very Large lambda (Underfitting):** Over-penalizes parameters, forcing all coefficients close to 0 and predicting near the global target mean.
+        """)
+        p_lr = os.path.join(artifacts_dir, "linear_regression_regularization_curve.png")
+        if os.path.exists(p_lr):
+            st.image(p_lr, use_container_width=True)
+
+
+# ---------------------------------------------------------
+# TAB 5: Empirical Benchmark Suite
 # ---------------------------------------------------------
 elif nav_choice == "📋 Empirical Benchmark Suite":
     st.markdown("<div class='main-title'>📋 Empirical Benchmark Suite</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Live, empirically computed benchmark comparisons across all supported Classical ML models.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Reproducible benchmark results computed from scratch across all three custom model families.</div>", unsafe_allow_html=True)
 
-    st.info("ℹ️ All results below are computed in real time by executing the leak-free pipeline on the current dataset.")
+    artifacts_dir = os.path.join(PROJECT_ROOT, "artifacts")
+    col1, col2 = st.columns(2)
 
-    if st.button("⚡ Run Full Benchmark Suite Live", type="primary"):
-        with st.spinner("Executing all regression and classification experiments..."):
-            # Task 1: Regression
-            schema_reg = infer_schema(dataset.headers, dataset.rows, target_column="final_exam_score", task_type="regression", ignored_columns=["student_id", "academic_risk"])
-            raw_X_reg, y_reg = dataset.split_features_target(feature_cols=schema_reg.feature_names, target_col="final_exam_score")
-            y_reg = [float(v) for v in y_reg]
-            suite_reg = ExperimentSuite(schema_reg, raw_X_reg, y_reg)
-            rep_reg = suite_reg.run_all()
+    with col1:
+        st.markdown("### 🏆 Classification Comparison")
+        p_comp = os.path.join(artifacts_dir, "classification_comparison.png")
+        if os.path.exists(p_comp):
+            st.image(p_comp, caption="Comparative Performance: KNN vs Decision Tree")
 
-            # Task 2: Classification
-            schema_clf = infer_schema(dataset.headers, dataset.rows, target_column="academic_risk", task_type="binary_classification", ignored_columns=["student_id", "final_exam_score"])
-            raw_X_clf, y_clf = dataset.split_features_target(feature_cols=schema_clf.feature_names, target_col="academic_risk")
-            y_clf = [int(v) for v in y_clf]
-            suite_clf = ExperimentSuite(schema_clf, raw_X_clf, y_clf)
-            rep_clf = suite_clf.run_all()
+        p_roc = os.path.join(artifacts_dir, "roc_curves.png")
+        if os.path.exists(p_roc):
+            st.image(p_roc, caption="Receiver Operating Characteristic (ROC) Curves")
 
-            st.session_state["benchmark_reg"] = rep_reg.records
-            st.session_state["benchmark_clf"] = rep_clf.records
+    with col2:
+        st.markdown("### 📉 Regression Performance")
+        p_act = os.path.join(artifacts_dir, "actual_vs_predicted_scores.png")
+        if os.path.exists(p_act):
+            st.image(p_act, caption="Linear Regression Predictions vs Actual Math Grades")
 
-    if "benchmark_reg" in st.session_state and "benchmark_clf" in st.session_state:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("### 1. Final Exam Score Regression")
-            st.table(st.session_state["benchmark_reg"])
-        with c2:
-            st.markdown("### 2. Academic Risk Classification")
-            st.table(st.session_state["benchmark_clf"])
-
-        st.markdown("---")
-        st.markdown("### 📊 Diagnostic Visualizations (Generated from Run)")
-        artifacts_dir = os.path.join(PROJECT_ROOT, "artifacts")
-        col_v1, col_v2 = st.columns(2)
-        with col_v1:
-            p_comp = os.path.join(artifacts_dir, "classification_comparison.png")
-            if os.path.exists(p_comp):
-                st.image(p_comp, caption="Comparative Classification Metric Profiles")
-        with col_v2:
-            p_roc = os.path.join(artifacts_dir, "roc_curves.png")
-            if os.path.exists(p_roc):
-                st.image(p_roc, caption="ROC Curves with Scratch Trapezoidal AUC Integration")
-    else:
-        st.write("Click the button above to run the live benchmark suite.")
+        p_loss = os.path.join(artifacts_dir, "linear_regression_loss_curve.png")
+        if os.path.exists(p_loss):
+            st.image(p_loss, caption="Gradient Descent Training Loss Convergence")
 
 
 # ---------------------------------------------------------
-# TAB 5: Architecture & Methods
+# TAB 6: Architecture & Methods
 # ---------------------------------------------------------
 elif nav_choice == "📖 Architecture & Methods":
-    st.markdown("<div class='main-title'>📖 Architecture & Mathematical Methods</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>In-depth documentation of mathematical foundations, leak-free pipeline boundaries, and Scikit-learn estimator integration.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-title'>📖 Architecture & Mathematical Foundations</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Mathematical formulation and architecture of EduPredict implemented entirely from first principles.</div>", unsafe_allow_html=True)
 
-    with st.expander("📐 Mathematical Foundations & Linear Algebra", expanded=True):
-        st.markdown(r"""
-        EduPredict implements core linear algebra primitives in `edupredict/math/`:
-        - **Vector Operations (`vectors.py`):** Dot products ($\mathbf{u} \cdot \mathbf{v} = \sum u_i v_i$), Euclidean ($\|\mathbf{u}-\mathbf{v}\|_2$) and Manhattan ($\|\mathbf{u}-\mathbf{v}\|_1$) distances.
-        - **Matrix Operations (`matrices.py`):** Matrix multiplication, transpositions, and **Gauss-Jordan elimination with partial pivoting** for matrix inversion.
-        - **Descriptive Statistics (`stats.py`):** Sample variance, standard deviation, covariance, and Pearson correlation matrices.
-        - **Activations (`activations.py`):** Numerically safe sigmoid $\sigma(z) = \frac{1}{1 + e^{-z}}$ and softmax with log-sum-exp normalization.
-        """)
+    st.markdown("""
+    ### 1. Mathematical Operations Implemented From First Principles
+    - **Linear Regression Solvers:**
+      - **Normal Equation:** $\\mathbf{w} = (\\mathbf{X}^T \\mathbf{X} + \\lambda \\mathbf{I})^{-1} \\mathbf{X}^T \\mathbf{y}$ solved via Gauss-Jordan elimination with partial row pivoting.
+      - **Gradient Descent:** $\\mathbf{w}_{t+1} = \\mathbf{w}_t - \\alpha \\mathbf{v}_t$ with Polyak momentum $\\mathbf{v}_t = \\beta \\mathbf{v}_{t-1} + \\nabla J(\\mathbf{w})$.
+    - **K-Nearest Neighbors Classifier:**
+      - Euclidean distance: $d(u, v) = \\sqrt{\\sum_{i=1}^n (u_i - v_i)^2}$ computed using pure Python `** 0.5`.
+      - Manhattan distance: $d(u, v) = \\sum_{i=1}^n |u_i - v_i|$.
+      - Weighted voting: $w_i = \\frac{1}{d(x, x_i) + \\epsilon}$ with deterministic tie-breaking.
+    - **Decision Tree Classifier:**
+      - Gini Impurity: $Gini(S) = 1 - \\sum_{k=1}^C p_k^2$.
+      - Recursive binary partitioning on midpoint thresholds with stopping criteria (`max_depth`, `min_samples_split`, `min_samples_leaf`).
+      - Feature importances based on weighted reduction in Gini impurity.
 
-    with st.expander("🛡️ Data Leakage Prevention Architecture", expanded=True):
-        st.markdown(r"""
-        Data leakage occurs when test data statistics inadvertently contaminate the training process. EduPredict guarantees strict isolation:
-        1. **Split-First Protocol:** `train_test_split` partitions raw samples before any transformer is initialized.
-        2. **Train-Only Parameter Fitting:**
-           - `SimpleImputer` learns feature means/modes strictly from $X_{\text{train}}$.
-           - `OneHotEncoder` learns categorical category sets strictly from $X_{\text{train}}$. Unseen test categories are mapped to zero-vectors.
-           - `StandardScaler` computes $\mu_{\text{train}}$ and $\sigma_{\text{train}}$ strictly from $X_{\text{train}}$.
-        3. **Identical Sample Indices:** Multi-task targets are split jointly using shared indices to prevent row misalignment.
-        """)
-
-    with st.expander("🎯 Evaluation Metrics Implemented from First Principles", expanded=True):
-        st.markdown(r"""
-        All metrics reported by EduPredict are implemented from scratch in `edupredict/metrics/`:
-        - **Regression:**
-          - Mean Squared Error: $\text{MSE} = \frac{1}{m}\sum (\hat{y}_i - y_i)^2$
-          - Root Mean Squared Error: $\text{RMSE} = \sqrt{\text{MSE}}$
-          - Mean Absolute Error: $\text{MAE} = \frac{1}{m}\sum |\hat{y}_i - y_i|$
-          - Coefficient of Determination: $R^2 = 1 - \frac{\sum (\hat{y}_i - y_i)^2}{\sum (y_i - \bar{y})^2}$
-        - **Classification:**
-          - $\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}}$
-          - $\text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}}$, $\text{Recall} = \frac{\text{TP}}{\text{TP} + \text{FN}}$, $F_1 = 2 \cdot \frac{P \cdot R}{P + R}$
-          - **ROC-AUC Integration:** Evaluates dynamic decision thresholds and integrates under the curve using the trapezoidal rule:
-            $$\text{AUC} = \sum_{i=1}^{k} \frac{\text{TPR}_i + \text{TPR}_{i-1}}{2} \times (\text{FPR}_i - \text{FPR}_{i-1})$$
-        """)
+    ### 2. Zero-Leakage Pipeline Architecture
+    1. **Pre-split Isolation:** Data records and targets are split jointly before any transformers are applied.
+    2. **Train-Only Fitting:** `SimpleImputer`, `OneHotEncoder`, and `StandardScaler` compute summary parameters strictly on training folds.
+    3. **Frozen Transformation:** Validation and test splits are transformed using the parameters frozen from the training split.
+    4. **Anti-Leakage Safeguard:** Intermediate examination scores `G1` and `G2` are strictly excluded from the feature space.
+    """)

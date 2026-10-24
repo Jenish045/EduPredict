@@ -8,6 +8,14 @@ Gracefully degrades to structured text formatting if matplotlib is not available
 
 import os
 from typing import Sequence, List, Optional, Any, Union, Dict, Tuple
+from edupredict.data.uci_metadata import get_column_display_name
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+if "MPLCONFIGDIR" not in os.environ:
+    _temp_dir = os.environ.get("TEMP", os.environ.get("TMP", "C:\\temp"))
+    _cache_dir = os.path.join(_temp_dir, "matplotlib_cache")
+    os.makedirs(_cache_dir, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = _cache_dir
 
 Number = Union[int, float]
 
@@ -109,7 +117,7 @@ def plot_feature_importances(
     try:
         import matplotlib.pyplot as plt
         sorted_pairs = sorted(zip(feature_names, importances), key=lambda x: x[1])
-        feats = [p[0] for p in sorted_pairs]
+        feats = [get_column_display_name(p[0]) for p in sorted_pairs]
         imps = [p[1] for p in sorted_pairs]
 
         plt.figure(figsize=(8, 5))
@@ -232,6 +240,7 @@ def plot_correlation_heatmap(
     try:
         import matplotlib.pyplot as plt
         p = len(feature_names)
+        display_names = [get_column_display_name(f) for f in feature_names]
         fig, ax = plt.subplots(figsize=(max(6, p * 1.1), max(5, p * 0.9)))
         cax = ax.matshow(corr_matrix, cmap="coolwarm", vmin=-1.0, vmax=1.0)
         cbar = fig.colorbar(cax, fraction=0.046, pad=0.04)
@@ -239,8 +248,8 @@ def plot_correlation_heatmap(
 
         ax.set_xticks(range(p))
         ax.set_yticks(range(p))
-        ax.set_xticklabels(feature_names, rotation=35, ha="left", fontsize=10)
-        ax.set_yticklabels(feature_names, fontsize=10)
+        ax.set_xticklabels(display_names, rotation=35, ha="left", fontsize=9)
+        ax.set_yticklabels(display_names, fontsize=9)
 
         for i in range(p):
             for j in range(p):
@@ -293,7 +302,7 @@ def plot_feature_distributions(
             clean_vals = [float(v) for v in vals if v is not None]
             color = palette[idx % len(palette)]
             ax.hist(clean_vals, bins=15, color=color, edgecolor="black", alpha=0.75)
-            ax.set_title(fname.replace("_", " ").title(), fontsize=11, fontweight="bold")
+            ax.set_title(get_column_display_name(fname), fontsize=11, fontweight="bold")
             ax.set_xlabel("Value", fontsize=10)
             ax.set_ylabel("Frequency", fontsize=10)
             ax.grid(True, linestyle="--", alpha=0.4)
@@ -331,7 +340,6 @@ def plot_classification_comparison(
         metrics = ["Accuracy", "Precision", "Recall", "F1", "ROC-AUC"]
         colors = ["#2bcbba", "#45aaf2", "#4b7bec", "#a55eea", "#fd9644"]
 
-        import math
         n_models = len(models)
         n_metrics = len(metrics)
         bar_width = 0.15
@@ -364,5 +372,84 @@ def plot_classification_comparison(
         lines = [f"=== {title} ==="]
         for r in benchmark_records:
             lines.append(f"{r['Model']}: Acc={r.get('Accuracy')}, F1={r.get('F1')}, AUC={r.get('ROC-AUC')}")
+        return "\n".join(lines)
+
+
+def plot_model_complexity_curves(
+    complexity_dict: Dict[str, Any],
+    title: Optional[str] = None,
+    save_path: Optional[str] = None,
+) -> str:
+    """
+    Render train vs validation evaluation curves across hyperparameter complexity.
+    Highlights optimal trade-off point between underfitting and overfitting.
+    """
+    model_name = complexity_dict.get("model_name", "Model")
+    param_name = complexity_dict.get("param_name", "Complexity Parameter")
+    param_values = complexity_dict.get("param_values", [])
+    train_scores = complexity_dict.get("train_scores", [])
+    val_scores = complexity_dict.get("val_scores", [])
+    best_param = complexity_dict.get("best_param")
+    best_val = complexity_dict.get("best_val_score")
+
+    plot_title = title or f"{model_name}: Underfitting vs Overfitting Analysis"
+    param_labels = {
+        "n_neighbors": "Number of Neighbors (k)",
+        "max_depth": "Maximum Tree Depth (max_depth)",
+        "l2_reg": "L2 Ridge Penalty (lambda)",
+    }
+    display_param = param_labels.get(param_name, param_name.replace("_", " ").title())
+    metric_label = "Holdout Accuracy" if "Classifier" in model_name else "Holdout Determination (R²)"
+
+    try:
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(8.5, 5))
+        ax.plot(
+            param_values,
+            train_scores,
+            "o-",
+            color="#2980b9",
+            linewidth=2.0,
+            label="Training Score",
+        )
+        ax.plot(
+            param_values,
+            val_scores,
+            "s-",
+            color="#e67e22",
+            linewidth=2.0,
+            label="Validation Score",
+        )
+
+        if best_param is not None and best_val is not None:
+            ax.axvline(
+                x=best_param,
+                color="#27ae60",
+                linestyle="--",
+                alpha=0.8,
+                label=f"Optimal {display_param}={best_param} ({metric_label}={best_val:.3f})",
+            )
+            ax.scatter([best_param], [best_val], color="#27ae60", s=100, zorder=5)
+
+        ax.set_title(plot_title, fontsize=13, fontweight="bold")
+        ax.set_xlabel(display_param, fontsize=11)
+        ax.set_ylabel(metric_label, fontsize=11)
+        ax.legend(loc="best", fontsize=10)
+        ax.grid(True, linestyle="--", alpha=0.5)
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            plt.savefig(save_path, dpi=200)
+            plt.close()
+            return f"Complexity curves saved to {save_path}"
+        else:
+            plt.close()
+            return "Complexity curves rendered."
+    except ImportError:
+        lines = [f"=== {plot_title} ==="]
+        for p, tr, va in zip(param_values, train_scores, val_scores):
+            lines.append(f"{param_name}={p}: Train={tr:.4f}, Val={va:.4f}")
         return "\n".join(lines)
 

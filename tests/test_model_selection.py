@@ -5,7 +5,7 @@ Unit tests for train/test splitting, stratified K-fold, and cross-validation.
 import unittest
 from edupredict.model_selection.split import train_test_split, KFold, StratifiedKFold
 from edupredict.model_selection.validation import cross_val_score
-from edupredict.models import LogisticRegression
+from edupredict.models import KNNClassifier
 
 
 class TestModelSelection(unittest.TestCase):
@@ -76,7 +76,7 @@ class TestModelSelection(unittest.TestCase):
         X = [[-2.0], [-1.0], [1.0], [2.0]] * 5
         y = [0, 0, 1, 1] * 5
 
-        model = LogisticRegression(max_iter=200, random_state=42)
+        model = KNNClassifier(n_neighbors=3)
         scores = cross_val_score(model, X, y, cv=3, scoring="accuracy")
         self.assertEqual(len(scores), 3)
         for s in scores:

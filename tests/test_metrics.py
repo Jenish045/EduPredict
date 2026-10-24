@@ -95,6 +95,31 @@ class TestMetrics(unittest.TestCase):
         y_perf_score = [0.1, 0.2, 0.8, 0.9]
         self.assertAlmostEqual(roc_auc_score(y_perf_true, y_perf_score), 1.0)
 
+    def test_majority_baseline_and_imbalance_diagnostics(self):
+        """Verify behavior against a dummy majority-class predictor under class imbalance."""
+        # 53 Normal (0), 26 At-Risk (1) matching holdout test set distribution
+        y_true = [0] * 53 + [1] * 26
+        # Dummy predictor always predicts majority class (0)
+        y_dummy_pred = [0] * 79
+
+        dummy_acc = accuracy_score(y_true, y_dummy_pred)
+        self.assertAlmostEqual(dummy_acc, 53.0 / 79.0, places=4)
+
+        # Majority dummy has 0 positive predictions: recall and precision on class 1 are 0
+        dummy_prec = precision_score(y_true, y_dummy_pred, pos_label=1, zero_division=0.0)
+        dummy_rec = recall_score(y_true, y_dummy_pred, pos_label=1, zero_division=0.0)
+        dummy_f1 = f1_score(y_true, y_dummy_pred, pos_label=1, zero_division=0.0)
+        self.assertEqual(dummy_prec, 0.0)
+        self.assertEqual(dummy_rec, 0.0)
+        self.assertEqual(dummy_f1, 0.0)
+
+        # Verify confusion matrix has TP=0, FP=0, TN=53, FN=26
+        cm = confusion_matrix(y_true, y_dummy_pred, labels=[0, 1])
+        self.assertEqual(cm[0][0], 53)  # TN
+        self.assertEqual(cm[0][1], 0)   # FP
+        self.assertEqual(cm[1][0], 26)  # FN
+        self.assertEqual(cm[1][1], 0)   # TP
+
 
 if __name__ == "__main__":
     unittest.main()
