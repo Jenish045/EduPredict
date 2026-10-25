@@ -2,7 +2,7 @@
 Unified, leak-free machine learning pipeline for EduPredict.
 
 Orchestrates data splitting, train-only preprocessing (imputation, encoding, scaling),
-Scikit-learn model training, and custom from-scratch metric evaluation.
+custom from-scratch model training, and custom first-principles metric evaluation.
 Eliminates data leakage and provides seamless single-record inference.
 """
 
@@ -111,7 +111,7 @@ class MLPipeline:
         1. Split raw data and targets jointly before any transformation.
         2. Fit imputers, encoder, and scaler strictly on X_train.
         3. Transform X_train and X_test using the frozen transformers.
-        4. Fit Scikit-learn estimator on X_train.
+        4. Fit custom estimator on X_train.
         5. Evaluate using custom scratch metrics.
         """
         # Validate task type and targets

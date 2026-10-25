@@ -195,34 +195,33 @@ class TestPipelineIntegrity(unittest.TestCase):
     def test_cli_and_dashboard_use_identical_split_logic(self):
         """
         Verify that app.py pipeline and runner.py use the same aligned split logic
-        with identical sample counts and stratified proportions.
+        with identical sample counts and stratified proportions on UCI student-mat.csv.
         """
         from edupredict.data.loader import load_csv
         import os
-        csv_path = "data/student_performance.csv"
-        if not os.path.exists(csv_path):
-            self.skipTest("student_performance.csv not present")
+        csv_path = "data/student-mat.csv"
+        self.assertTrue(os.path.exists(csv_path), "UCI dataset data/student-mat.csv must be present")
 
         headers, rows = load_csv(csv_path)
-        feature_cols = [
-            "study_hours", "attendance", "past_score", "assignments_completed",
-            "parental_education", "internet_access", "tutoring"
-        ]
-        feat_indices = [headers.index(col) for col in feature_cols]
+        g3_idx = headers.index("G3")
+        y_reg = [float(row[g3_idx]) for row in rows]
+        y_clf = [1 if float(row[g3_idx]) < 10.0 else 0 for row in rows]
+
+        # Use 30 non-grade predictor features
+        ignored = {"G1", "G2", "G3", "academic_risk"}
+        feat_indices = [i for i, h in enumerate(headers) if h not in ignored]
         raw_X = [[row[idx] for idx in feat_indices] for row in rows]
-        y_reg = [float(row[headers.index("final_exam_score")]) for row in rows]
-        y_clf = [int(row[headers.index("academic_risk")]) for row in rows]
 
         # Use unified train_test_split
         raw_tr, raw_te, y_reg_tr, y_reg_te, y_clf_tr, y_clf_te = train_test_split(
             raw_X, y_reg, y_clf,
-            test_size=0.2,
+            test_size=0.20,
             random_seed=42,
             stratify=y_clf
         )
 
-        self.assertEqual(len(raw_tr), 480)
-        self.assertEqual(len(raw_te), 120)
+        self.assertEqual(len(raw_tr), 316)
+        self.assertEqual(len(raw_te), 79)
 
         # Check stratification consistency
         overall_prop = sum(y_clf) / len(y_clf)
@@ -230,6 +229,8 @@ class TestPipelineIntegrity(unittest.TestCase):
         test_prop = sum(y_clf_te) / len(y_clf_te)
         self.assertAlmostEqual(train_prop, overall_prop, places=2)
         self.assertAlmostEqual(test_prop, overall_prop, places=2)
+        self.assertEqual(sum(y_clf_te), 26)  # Exactly 26 at-risk in holdout
+        self.assertEqual(len(y_clf_te) - sum(y_clf_te), 53)  # Exactly 53 normal in holdout
 
 
 if __name__ == "__main__":

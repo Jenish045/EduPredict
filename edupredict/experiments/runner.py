@@ -57,24 +57,15 @@ def run_full_experiment(
     print(f"=== EduPredict: Starting Classical ML Experiment (Seed={random_seed}) ===")
 
     # Step 1: Resolve dataset path
-    resolved_path = csv_path
-    if resolved_path is None:
-        if os.path.exists("data/student-mat.csv"):
-            resolved_path = "data/student-mat.csv"
-        elif os.path.exists("data/student_performance.csv"):
-            resolved_path = "data/student_performance.csv"
+    resolved_path = csv_path or "data/student-mat.csv"
 
-    if resolved_path and os.path.exists(resolved_path):
+    if os.path.exists(resolved_path):
         print(f"[*] Loading dataset from: {resolved_path}")
         headers, rows = load_csv(resolved_path)
         dataset = Dataset(headers=headers, data=rows)
     else:
-        print("[*] Generating synthetic student academic performance dataset...")
+        print("[*] Generating synthetic student academic performance dataset in-memory...")
         dataset = generate_student_data(n_samples=600, random_seed=random_seed, missing_rate=0.02)
-        default_csv = "data/student_performance.csv"
-        os.makedirs("data", exist_ok=True)
-        save_csv(default_csv, dataset.headers, dataset.rows)
-        print(f"[*] Saved dataset to {default_csv}")
 
     print(f"[*] Dataset loaded successfully: {dataset.shape[0]} rows, {dataset.shape[1]} columns")
 

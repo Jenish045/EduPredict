@@ -80,9 +80,8 @@ st.markdown("""
 
 @st.cache_resource(show_spinner="Loading dataset...")
 def get_default_dataset() -> Dataset:
-    """Load the UCI Student Performance Mathematics dataset as primary, with synthetic fallback."""
+    """Load the UCI Student Performance Mathematics dataset (data/student-mat.csv)."""
     uci_path = os.path.join(PROJECT_ROOT, "data", "student-mat.csv")
-    synth_path = os.path.join(PROJECT_ROOT, "data", "student_performance.csv")
 
     if os.path.exists(uci_path):
         headers, rows = load_csv(uci_path)
@@ -99,14 +98,8 @@ def get_default_dataset() -> Dataset:
             return Dataset(headers=new_headers, data=new_rows)
         return ds
 
-    if os.path.exists(synth_path):
-        headers, rows = load_csv(synth_path)
-        return Dataset(headers=headers, data=rows)
-
-    os.makedirs(os.path.join(PROJECT_ROOT, "data"), exist_ok=True)
-    ds = generate_student_data(n_samples=600, random_seed=42, missing_rate=0.02)
-    save_csv(synth_path, ds.headers, ds.rows)
-    return ds
+    # In-memory fallback if CSV is absent
+    return generate_student_data(n_samples=600, random_seed=42, missing_rate=0.02)
 
 
 # Load Dataset

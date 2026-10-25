@@ -2,7 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Zero External Dependencies](https://img.shields.io/badge/core%20ml-100%25%20scratch%20(zero%20numpy%2C%20pandas%2C%20sklearn)-success.svg)]()
-[![Build & Tests](https://img.shields.io/badge/tests-98%20passed-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-117%20passed%20(0%20skipped)-brightgreen.svg)]()
 
 > **EduPredict** is an educational Classical Machine Learning framework designed for predicting student academic performance (continuous score regression) and early academic risk detection (binary classification). 
 > 
@@ -40,7 +40,7 @@ In modern machine learning education, pipelines are often treated as black boxes
 EduPredict addresses this by implementing the entire ML stack from the ground up:
 - **Two Authoritative Academic Objectives:**
   1. **Academic Performance Regression:** Predict continuous student final mathematics grade ($G3 \in [0, 20]$) on the UCI Student Performance Mathematics dataset.
-  2. **Academic Risk Early Warning:** Classify students into **Normal Trajectory ($0$)** vs. **At-Risk ($1$)** ($G3 < 10$ passing threshold in the Portuguese secondary educational system).
+  2. **Academic Risk Early Warning:** Classify students into **Normal Trajectory ($0$)** vs. **At-Risk ($1$)** using the operational academic-risk threshold ($G3 < 10$, representing the standard passing boundary in the Portuguese secondary educational system). Designed as an educational early-warning exploration rather than a demonstrated clinical or real-world intervention tool.
 - **Leakage Prevention Guarantees:** Intermediate examination grades ($G1$ and $G2$) are strictly excluded from all training feature matrices to eliminate trivial target leakage and ensure meaningful predictive learning.
 - **Generic Tabular Capabilities:** While pre-configured for educational analytics, the framework dynamically infers schemas, detects numerical and categorical features, handles missing values, and trains models on arbitrary tabular datasets.
 
@@ -257,19 +257,19 @@ Empirical results computed on the primary UCI Mathematics dataset (`data/student
 | Model | Configuration | Accuracy | Precision | Recall | F1 Score | ROC-AUC | Infer Time |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Custom Decision Tree (Selected)** | `max_depth = 2`, $\tau = 0.50$ | **69.62%** | **0.5500** | **0.4231** | **0.4783** | **0.6161** | ~14 ms |
-| **Custom KNN Classifier** | $k = 5$, uniform, $\tau = 0.50$ | 64.56% | 0.4167 | 0.1923 | 0.2632 | 0.5653 | ~7 ms |
+| **Custom KNN Classifier (Comparison Baseline)** | $k = 5$, uniform, $\tau = 0.50$ | 64.56% | 0.4167 | 0.1923 | 0.2632 | 0.5653 | ~7 ms |
 | *Majority-Class Baseline* | Predicts class 0 (Normal) | 67.09% | 0.0000 | 0.0000 | 0.0000 | 0.5000 | 0 ms |
 
 ### 12.3 Overfitting Diagnostic Summary (Internal Validation Protocol)
 To ensure complete independence between hyperparameter selection and final testing, the 316-sample development pool is split into Train-Sub (253 samples) and Validation (63 samples). The 79-sample holdout test set remains strictly isolated:
 - **Decision Tree Complexity & Pruning:** Unconstrained trees (`max_depth = 5`) overfit the 40 one-hot dimensions, dropping validation accuracy to 58.73% and test ROC-AUC to 0.4989. Pruning to `max_depth = 2` achieves **69.84% validation accuracy** and boosts holdout test accuracy to **69.62%** and ROC-AUC to **0.6161**.
-- **Linear Regression Regularization:** Unregularized OLS ($\lambda=0$) overfits sample variance ($R^2 = -0.0992$). Selecting $\lambda^* = 5.0$ on validation ($R^2 = +0.0431$) translates into out-of-sample holdout improvement ($R^2 = +0.0600$, RMSE = 3.94), successfully outperforming the training-mean baseline.
-- **KNN Complexity Curve:** Peak validation accuracy reaches **66.67%** at $k = 19$, while $k = 5$ maintains the strongest discriminant ranking (ROC-AUC = 0.5653).
+- **Linear Regression Regularization:** Unregularized OLS ($\lambda=0$) overfits sample variance ($R^2 = -0.0992$). Selecting $\lambda^* = 5.0$ on validation ($R^2 = +0.0423$) translates into out-of-sample holdout improvement ($R^2 = +0.0600$, RMSE = 3.94), successfully outperforming the training-mean baseline.
+- **KNN Model Selection & Complexity:** Hyperparameter search on the internal validation split ($k \in [1, 29]$) identifies peak validation accuracy of **66.67%** at $k = 19$. However, because the dataset is imbalanced (~67% normal), larger neighborhood values smooth predictions toward the majority class (yielding a holdout recall of only 7.69%). In the benchmark suite, canonical $k = 5$ (uniform weights, Euclidean distance) is evaluated as a non-parametric comparison baseline (holdout accuracy 64.56%, ROC-AUC 0.5653). The Decision Tree ($\text{depth}=2$) remains the selected model for academic risk detection.
 
 ### 12.4 Academic Baselines & Confusion Matrix Verification
 - **Holdout Test Set ($N=79$):** 53 Normal (67.09%), 26 At-Risk (32.91%).
 - **Decision Tree Confusion Matrix (`depth=2`):** $\text{TN} = 44$, $\text{FP} = 9$, $\text{FN} = 15$, $\text{TP} = 11$ (identifies 11 of 26 at-risk students; Precision = 55.0%, Recall = 42.3%).
-- **KNN Confusion Matrix ($k=5$):** $\text{TN} = 46$, $\text{FP} = 7$, $\text{FN} = 21$, $\text{TP} = 5$ (identifies 5 of 26 at-risk students; Precision = 41.7%, Recall = 19.2%).
+- **KNN Confusion Matrix ($k=5$ comparison baseline):** $\text{TN} = 46$, $\text{FP} = 7$, $\text{FN} = 21$, $\text{TP} = 5$ (identifies 5 of 26 at-risk students; Precision = 41.7%, Recall = 19.2%).
 - **Majority-Class Baseline:** $\text{TN} = 53$, $\text{FP} = 0$, $\text{FN} = 26$, $\text{TP} = 0$ (fails to identify any at-risk student).
 
 ---
@@ -295,8 +295,8 @@ pip install streamlit matplotlib
 # Run complete experiment suite on the primary UCI dataset
 python run_experiments.py
 
-# Run on synthetic dataset with custom seed
-python run_experiments.py --data data/student_performance.csv --seed 42
+# Run on custom dataset path with custom seed
+python run_experiments.py --data data/student-mat.csv --seed 42
 ```
 
 ### 13.3 Launching the Interactive Web Application
@@ -308,7 +308,7 @@ streamlit run app.py
 
 ## 14. Testing & Verification
 
-EduPredict includes a comprehensive automated test suite (110 unit and integration tests passing with 100% success rate) executed via Python's standard `unittest` framework:
+EduPredict includes a comprehensive automated test suite (117 tests discovered and executed with 100% pass rate, 0 skipped, 0 failures, 0 errors) executed via Python's standard `unittest` framework:
 
 ```bash
 # Run the complete test suite

@@ -2,7 +2,8 @@
 EduPredict Main Experiment Entrypoint.
 
 Executes reproducible end-to-end Classical Machine Learning experiments
-using Scikit-learn estimators and scratch-implemented preprocessing, math, and metrics.
+using custom from-scratch model estimators (Linear Regression, KNN, Decision Tree),
+first-principles preprocessing, custom linear algebra, and scratch metrics.
 """
 
 import argparse
